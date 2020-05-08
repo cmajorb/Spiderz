@@ -11,14 +11,13 @@ var randomDensity;
 var tiles = [];
 var spiderSize;
 var centerColor;
-var numOfPlayers;
 var playerData;
 var gameState;
 
 const image = new Image();
 image.src = "/static/images/spider.png";
 
-canvas.addEventListener("click", printMousePos);
+canvas.addEventListener("click", clickEvent);
 socket.emit('new player');
 socket.on('state', function(gameData) {
   tiles = gameData.sTiles;
@@ -39,46 +38,38 @@ socket.on('init', function(canvasData) {
   randomDensity = canvasData.sRandomDensity;
   spiderSize = canvasData.sSpiderSize;
   centerColor = canvasData.sCenterColor;
-  numOfPlayers = canvasData.sNumOfPlayers;
   document.getElementById("restart").style.display = "none";
-
-console.log("init run");
+  console.log("init run");
 });
-/*
-image.onload = function(){
-  updateCanvas();
-}*/
 
 function startGame() {
   socket.emit('start');
   document.getElementById("start").style.display = "none";
-
   console.log("start game");
-
 }
+
 function restartGame() {
   socket.emit('restart');
   document.getElementById("restart").style.display = "none";
   document.getElementById("start").style.display = "block";
-
   console.log("restart game");
-
 }
-function printMousePos(e) {
+
+function clickEvent(e) {
     var coor = getMousePos(canvas,e);
     var cursorY = midY-coor.y;
     var cursorX = midX-coor.x;
-
     var polar = cartesian2Polar(cursorX,cursorY);
     socket.emit('click',polar);
-    console.log(polar);
   }
-  function cartesian2Polar(x,y){
-      distance = Math.floor(Math.sqrt(x*x + y*y)/gapSize);
-      radians = Math.floor(((Math.atan2(y,x)+Math.PI)/Math.PI)*(sections/2)); //This takes y first
-      polarCoor = { distance:distance, radians:radians }
-      return polarCoor
-  }
+
+function cartesian2Polar(x,y){
+    distance = Math.floor(Math.sqrt(x*x + y*y)/gapSize);
+    radians = Math.floor(((Math.atan2(y,x)+Math.PI)/Math.PI)*(sections/2)); //This takes y first
+    polarCoor = { distance:distance, radians:radians }
+    return polarCoor
+}
+
 function Polar2cartesian(r,angle){
     angle = angle+0.5;
     r = r+0.5;
@@ -87,6 +78,7 @@ function Polar2cartesian(r,angle){
     cartesianCoor = { x:x, y:y }
     return cartesianCoor
 }
+
 function drawGrid(){
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.strokeStyle = "black";
@@ -97,7 +89,6 @@ function drawGrid(){
   ctx.fill();
   ctx.closePath();
 
-
   for(var i =0; i<=size; i++) {
     ctx.beginPath();
     ctx.arc(midX, midY, gapSize*i, 0, Math.PI*2, false);
@@ -105,7 +96,6 @@ function drawGrid(){
     ctx.closePath();
   }
   ctx.beginPath();
-  ctx.strokeStyle = strokeStyle;
   for(var i=0; i<(sections/2);i++) {
     ctx.moveTo(size*gapSize*Math.cos((Math.PI/(sections/2))*i)+midX,size*gapSize*Math.sin((Math.PI/(sections/2))*i)+midY);
     ctx.lineTo(size*gapSize*Math.cos((Math.PI/(sections/2))*i+Math.PI)+midX,size*gapSize*Math.sin((Math.PI/(sections/2))*i+Math.PI)+midY);
@@ -158,32 +148,3 @@ function getMousePos(canvas, evt) {
       y: evt.clientY - rect.top
     };
 }
-
-function recursiveDraw(node) {
-
-
-
-}
-function updateCanvas() {
-  for(var i = 0; i<sections-1; i++) {
-    var node = nodeSearch(1,i);
-    if(node.active == false){
-      trapCheck(node);
-      for(var x = 0; x<tiles.length; x++) {
-        tiles[x].explored = false;
-      }
-      //unexplore
-    }
-  }
-  drawGrid();
-  for(var x = 0; x<tiles.length; x++) {
-    tiles[x].explored = false; //reset explore variable
-    tiles[x].trapped = true; //reset to true
-  }
-
-  recursiveDraw(head);
-
-
-
-}
-//init();
