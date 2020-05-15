@@ -5,7 +5,7 @@ Getting started:
 
 Run the following commands in your root project directory after installing npm\
 npm init\
-npm install --save express socket.io
+npm install --save express socket.io redis
 
 You may have to do some port forwarding if you want to show it on port 80. I used the following:\
 sudo iptables -t nat -L\

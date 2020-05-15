@@ -14,20 +14,33 @@ var centerColor;
 var playerData;
 var gameState;
 
-const image = new Image();
-image.src = "/static/images/spider.png";
+const spider = new Image();
+const spiderSelected = new Image();
+let sessionId = sessionStorage.getItem('data');
+
+spider.src = "/static/images/spider.png";
+spiderSelected.src = "/static/images/spider_selected.png";
 
 canvas.addEventListener("click", clickEvent);
-socket.emit('new player');
+console.log(sessionId);
+socket.emit('start-session', sessionId);
+socket.emit('player connect',sessionId);
+socket.on('redirect', function() {
+  returnHome();
+  console.log("redirect");
+});
 socket.on('state', function(gameData) {
-  tiles = gameData.sTiles;
+  console.log(":"+gameData.sPlayerData);
+  tiles = gameData.sActiveTiles;
   gameState = gameData.sGameState;
   players = gameData.sPlayerData;
   centerColor = gameData.sCenterColor;
   winner = gameData.sWinner;
   drawGrid();
 });
-
+socket.on('player disconnect', function(name) {
+  console.log(name +" has left the game");
+});
 socket.on('init', function(canvasData) {
   size = canvasData.sSize;
   strokeStyle = canvasData.SstrokeStyle;
@@ -38,21 +51,22 @@ socket.on('init', function(canvasData) {
   randomDensity = canvasData.sRandomDensity;
   spiderSize = canvasData.sSpiderSize;
   centerColor = canvasData.sCenterColor;
-  document.getElementById("restart").style.display = "none";
   console.log("init run");
 });
 
-function startGame() {
-  socket.emit('start');
-  document.getElementById("start").style.display = "none";
-  console.log("start game");
-}
+socket.on("set-session-acknowledgement", function(data) {
+  sessionId = data;
+  sessionStorage.setItem('data', data);
+});
 
-function restartGame() {
-  socket.emit('restart');
-  document.getElementById("restart").style.display = "none";
-  document.getElementById("start").style.display = "block";
-  console.log("restart game");
+socket.on("end game", function(message) {
+  document.getElementById("modal-body").innerHTML = message;
+  $("#notificationModal").modal();
+});
+
+function returnHome() {
+  window.location.href = "/";
+
 }
 
 function clickEvent(e) {
@@ -60,7 +74,7 @@ function clickEvent(e) {
     var cursorY = midY-coor.y;
     var cursorX = midX-coor.x;
     var polar = cartesian2Polar(cursorX,cursorY);
-    socket.emit('click',polar);
+    socket.emit('click',polar,sessionId);
   }
 
 function cartesian2Polar(x,y){
@@ -109,9 +123,9 @@ function drawGrid(){
   ctx.closePath();
 
   ctx.lineWidth = gapSize;
-  ctx.strokeStyle = "rgba(255, 0, 0, 1)";
 
   for(var i = 0; i<tiles.length; i++) {
+    ctx.strokeStyle = tiles[i][2];
     ctx.beginPath();
     ctx.arc(midX, midY, gapSize*tiles[i][0]+gapSize/2, (Math.PI/(sections/2))*tiles[i][1], (Math.PI/(sections/2))*tiles[i][1]+(Math.PI/(sections/2)), false);
     ctx.stroke();
@@ -119,25 +133,20 @@ function drawGrid(){
   }
 
   for(var i = 0;i<players.length;i++) {
+    var image = spider;
+    if(players[i].activeTurn == true) {
+      image = spiderSelected;
+    }
     var coor = Polar2cartesian(players[i].r,players[i].angle);
+    var position = [coor.x-gapSize*(spiderSize/2),coor.y-gapSize*(spiderSize/2),gapSize*spiderSize,gapSize*spiderSize];
     if(players[i].r==-1) {
-      ctx.drawImage(image, 0+i*gapSize*spiderSize,0,gapSize*spiderSize,gapSize*spiderSize);
+      position = [0+i*gapSize*spiderSize,0,gapSize*spiderSize,gapSize*spiderSize];
     }
-    else {
-      ctx.drawImage(image, coor.x-gapSize*(spiderSize/2),coor.y-gapSize*(spiderSize/2),gapSize*spiderSize,gapSize*spiderSize);
-    }
-  }
-
-  if(gameState==1) {
-    document.getElementById("restart").style.display = "block";
+    ctx.drawImage(image, position[0],position[1],position[2],position[3]);
+    ctx.textAlign = "center";
     ctx.fillStyle = "black";
-    ctx.font = "30px Arial";
-    if(winner!=-1) {
-      ctx.fillText("Player "+winner+" wins", 10, 50);
-    }
-    else {
-      ctx.fillText("No one wins :(", 10, 50);
-    }
+    ctx.font = "12px Arial";
+    ctx.fillText(players[i].name, position[0]+(gapSize*spiderSize)/2,position[1]+(gapSize*spiderSize*0.85));
   }
 }
 
