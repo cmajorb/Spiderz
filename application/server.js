@@ -8,10 +8,9 @@ const crypto = require("crypto");
 var app = express();
 var server = http.Server(app);
 var io = socketIO(server);
-var refreshRate = 10000 / 60;
+var refreshRate = 1000/2;
 var activeSessions = [];
 var rooms = [];
-var waitRoom = [];
 var dTime = 2; //time until user is deactivated
 
 app.set('port', process.env.PORT);
@@ -56,6 +55,9 @@ io.on('connection', function(socket) {
   socket.on('disconnect', function () {
     var client = getSessionBySocket(activeSessions,socket.id);
     client.disconnectTime = Date.now();
+    if(client.state!==3) {
+      client.state = 1;
+    }
     console.log(client.sessionId+ " has disconnected");
 
     //getSessionById(activeSessions,socket.id,"socketId").state = 0;
@@ -68,7 +70,6 @@ io.on('connection', function(socket) {
       var client = getSessionById(activeSessions,data)
       client.name = name;
       client.state = 2;
-      waitRoom.push(client);
       socket.emit('joining');
     }
     else {
@@ -137,9 +138,11 @@ io.on('connection', function(socket) {
 });
 
 setInterval(function() {
+  var waitRoom = [];
   for(var i = 0; i<activeSessions.length; i++) {
     if(activeSessions[i].state == 2) {
       io.to(activeSessions[i].socketId).emit('joining');
+      waitRoom.push(activeSessions[i]);
     }
     if(activeSessions[i].disconnectTime != 0 && (Date.now()-activeSessions[i].disconnectTime)/1000 > dTime) {
           endGame(activeSessions[i].room,activeSessions[i].name,0);
