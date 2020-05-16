@@ -147,6 +147,10 @@ setInterval(function() {
       io.to(activeSessions[i].socketId).emit('joining');
       waitRoom.push(activeSessions[i]);
     }
+    else if (activeSessions[i].state == 1) {
+      var msg = activeSessions.length + " active players";
+      io.to(activeSessions[i].socketId).emit('info',msg);
+    }
     if(activeSessions[i].disconnectTime != 0 && (Date.now()-activeSessions[i].disconnectTime)/1000 > dTime) {
           endGame(activeSessions[i].room,activeSessions[i].name,0);
           console.log(activeSessions[i].name + " has been deactivated");
@@ -159,6 +163,7 @@ setInterval(function() {
     var player2 = waitRoom.pop();
     createRoom(player1,player2);
   }
+
 }, refreshRate);
 
 

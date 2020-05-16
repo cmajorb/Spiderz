@@ -15,6 +15,9 @@ socket.on('joining', function() {
   document.getElementById("myForm").style.display = "none";
   console.log("joining ");
 });
+socket.on('info', function(msg) {
+  document.getElementById("info").innerHTML = msg;
+});
 socket.on('paired', function() {
   window.location.href = "/game";
 });

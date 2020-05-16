@@ -8,8 +8,17 @@
 }
 #centerbar {
   background-color:white;
-  height:100vh;
   padding:0px !important;
+  padding-bottom:30px !important;
+}
+#error-msg {
+  color:red;
+}
+#info {
+  text-align:center;
+  background-color:#E8E8E8;
+  font-size:1em;
+  padding:5px;
 }
 html,body {
   background-color: #DCDCDC !important;
@@ -19,6 +28,7 @@ h1 {
   text-align:center;
   background-color:black;
   padding:10px;
+  margin:0px !important;
   color:white !important;
 }
 .bi-info-circle-fill {
@@ -27,7 +37,7 @@ h1 {
   margin-left:10px;
 }
 p {
-  margin:20px;
+  margin:20px !important;
 }
 a{
   text-decoration: none !important;
