@@ -23,6 +23,9 @@ app.get('/', function(request, response) {
 app.get('/game', function(request, response) {
   response.sendFile(path.join(__dirname, 'game.html'));
 });
+app.get('/info', function(request, response) {
+  response.sendFile(path.join(__dirname, 'info.html'));
+});
 // Starts the server.
 server.listen(process.env.PORT, function() {
   console.log('Starting server on port '+process.env.PORT);

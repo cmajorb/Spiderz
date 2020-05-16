@@ -6,3 +6,29 @@
   padding:10px;
   display:none;
 }
+#centerbar {
+  background-color:white;
+  height:100vh;
+  padding:0px !important;
+}
+html,body {
+  background-color: #DCDCDC !important;
+  height:100vh;
+}
+h1 {
+  text-align:center;
+  background-color:black;
+  padding:10px;
+  color:white !important;
+}
+.bi-info-circle-fill {
+  width:2em;
+  height:2em;
+  margin-left:10px;
+}
+p {
+  margin:20px;
+}
+a{
+  text-decoration: none !important;
+}

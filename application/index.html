@@ -3,34 +3,55 @@
 <head>
     <meta charset="utf-8" />
     <title>Spiderz</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <link rel="stylesheet" href="/static/mainstyle.css">
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.2.1/css/bootstrap.min.css" crossorigin="anonymous">
 </head>
 <body>
-  <div id="loading">
-    <div class="spinner-border" role="status">
-      <span class="sr-only">Loading...</span>
+  <div class="container">
+  <div class="row">
+    <div class="col-sm">
     </div>
-    <span>Joining room</span>
-  </div>
-  <div id="myForm">
-    <form>
-      <div class="form-group">
-        <label for="name">Name</label>
-        <input class="form-control" type="text" placeholder="Name" id="name">
-        <span class="help-block" id="error-msg"></span>
+    <div class="col-sm-5" id = "centerbar">
+      <a href="/"><h1>Spiderz</h1></a>
+      <div id="loading">
+        <div class="spinner-border" role="status">
+          <span class="sr-only">Loading...</span>
+        </div>
+        <span>Joining room</span>
       </div>
-      <div class="form-group">
-        <label for="webSize">Web Size</label>
-        <select class="form-control" id="webSize">
-          <option>small</option>
-          <option>medium</option>
-          <option>large</option>
-        </select>
+
+      <div id="myForm">
+        <form>
+          <div class="form-group">
+            <label for="name">Name</label>
+            <input class="form-control" type="text" placeholder="Name" id="name">
+            <span class="help-block" id="error-msg"></span>
+          </div>
+          <div class="form-group">
+            <label for="webSize">Web Size</label>
+            <select class="form-control" id="webSize">
+              <option>small</option>
+              <option>medium</option>
+              <option>large</option>
+            </select>
+          </div>
+          <button type="button" class="btn btn-primary" onclick="startGame()">Start Game</button>
+          <a href="/info">
+          <svg class="bi bi-info-circle-fill" viewBox="0 0 16 16" fill="#007bff">
+            <path fill-rule="evenodd" d="M8 16A8 8 0 108 0a8 8 0 000 16zm.93-9.412l-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM8 5.5a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+          </svg>
+        </a>
+        </form>
       </div>
-      <button type="button" class="btn btn-primary" onclick="startGame()">Start Game</button>
-    </form>
+    </div>
+    <div class="col-sm">
+    </div>
   </div>
+</div>
+
+
+
 </body>
     <script src="/socket.io/socket.io.js"></script>
     <script src="/static/index.js"></script>
