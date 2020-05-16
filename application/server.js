@@ -18,13 +18,28 @@ app.use('/static', express.static(__dirname + '/static'));
 
 // Routing
 app.get('/', function(request, response) {
-  response.sendFile(path.join(__dirname, 'index.html'));
+  var language = request.query.lang;
+  if(language == 'spa') {
+    response.sendFile(path.join(__dirname, 'index_spa.html'));
+  } else {
+    response.sendFile(path.join(__dirname, 'index.html'));
+  }
 });
 app.get('/game', function(request, response) {
-  response.sendFile(path.join(__dirname, 'game.html'));
+  var language = request.query.lang;
+  if(language == 'spa') {
+    response.sendFile(path.join(__dirname, 'game_spa.html'));
+  } else {
+    response.sendFile(path.join(__dirname, 'game.html'));
+  }
 });
 app.get('/info', function(request, response) {
-  response.sendFile(path.join(__dirname, 'info.html'));
+  var language = request.query.lang;
+  if(language == 'spa') {
+    response.sendFile(path.join(__dirname, 'info_spa.html'));
+  } else {
+    response.sendFile(path.join(__dirname, 'info.html'));
+  }
 });
 // Starts the server.
 server.listen(process.env.PORT, function() {
