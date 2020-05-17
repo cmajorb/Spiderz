@@ -12,6 +12,7 @@ var refreshRate = 1000/2;
 var activeSessions = [];
 var rooms = [];
 var dTime = 2; //time until user is deactivated
+var wTime = 3;
 
 app.set('port', process.env.PORT);
 app.use('/static', express.static(__dirname + '/static'));
@@ -50,12 +51,13 @@ server.listen(process.env.PORT, function() {
 io.on('connection', function(socket) {
   socket.on('start-session', function(data) {
     io.sockets.emit('init', canvasData); //need to fix
-
             if (getSessionById(activeSessions,data) != -1) {
               var client = getSessionById(activeSessions,data);
               console.log(client.sessionId+" rejoined");
               if(client.state == 3) {
                 socket.join(client.room);
+              } else {
+                socket.join("mainRoom");
               }
               client.socketId = socket.id;
               socket.emit("set-session-acknowledgement", data);
@@ -64,10 +66,10 @@ io.on('connection', function(socket) {
               activeSessions.push({sessionId: session_id, socketId: socket.id, state: 1});
               console.log(session_id + " joined for first time");
               socket.emit("set-session-acknowledgement", session_id);
+              socket.join("mainRoom");
             }
             getSessionBySocket(activeSessions,socket.id).disconnectTime = 0;
-
-              console.log("Number of active users: "+activeSessions.length);
+            console.log("Number of active users: "+activeSessions.length);
 
         });
   socket.on('disconnect', function () {
@@ -78,16 +80,16 @@ io.on('connection', function(socket) {
     }
     console.log(client.sessionId+ " has disconnected");
 
-    //getSessionById(activeSessions,socket.id,"socketId").state = 0;
-    //io.sockets.emit('init', canvasData);
-
   });
-  socket.on('register', function(name,data) {
+  socket.on('register', function(name,data,gameSize) {
     if(name) {
       console.log(data+" changed name to "+name);
       var client = getSessionById(activeSessions,data)
       client.name = name;
       client.state = 2;
+      client.waitTime = Date.now();
+      client.gameSize = gameSize;
+      socket.join("waitRoom"+gameSize);
       socket.emit('joining');
     }
     else {
@@ -156,27 +158,37 @@ io.on('connection', function(socket) {
 });
 
 setInterval(function() {
-  var waitRoom = [];
+  var waitRooms = [];
+  var room;
+  for(var i =2; i<=4; i++) {
+    room = io.sockets.adapter.rooms['waitRoom'+i];
+    if(room) {
+      io.to('waitRoom'+i).emit('joining','Joining game ('+room.length+'/'+i+' players)');
+      if(room.length>=i) {
+        var waitRoom = [];
+        for (var clientId in room.sockets ) {
+            waitRoom.push(clientId);
+        }
+        var p = [];
+        for(var x = 0;x<i;x++) {
+          p.push(waitRoom.pop());
+        }
+        createRoom(p);
+      }
+    }
+  }
+  var mainRoom = io.sockets.adapter.rooms['mainRoom'];
+  if(mainRoom) {
+    var msg = mainRoom.length + " active players";
+    io.to('mainRoom').emit('info',msg);
+  }
+
   for(var i = 0; i<activeSessions.length; i++) {
-    if(activeSessions[i].state == 2) {
-      io.to(activeSessions[i].socketId).emit('joining');
-      waitRoom.push(activeSessions[i]);
-    }
-    else if (activeSessions[i].state == 1) {
-      var msg = activeSessions.length + " active players";
-      io.to(activeSessions[i].socketId).emit('info',msg);
-    }
     if(activeSessions[i].disconnectTime != 0 && (Date.now()-activeSessions[i].disconnectTime)/1000 > dTime) {
           endGame(activeSessions[i].room,activeSessions[i].name,0);
           console.log(activeSessions[i].name + " has been deactivated");
           activeSessions.splice(i, 1);
-
     }
-  }
-  if(waitRoom.length>1) {
-    var player1 = waitRoom.pop();
-    var player2 = waitRoom.pop();
-    createRoom(player1,player2);
   }
 
 }, refreshRate);
@@ -257,7 +269,7 @@ var randomDensity = 0.2;
 var spiderSize = 3;
 
 var neutral = "rgba(192, 192, 192, 1)";
-var colors = ["rgba(255, 0, 0, 1)","rgba(0, 0, 255, 1)","rgba(255, 255, 0, 1)"];
+var colors = ["rgba(255, 0, 0, 1)","rgba(0, 0, 255, 1)","rgba(255, 255, 0, 1)","rgba(0, 255, 0, 1)"];
 
 var canvasData = {
   sSize: size,
@@ -268,28 +280,23 @@ var canvasData = {
   sSections: sections,
   sSpiderSize: spiderSize,
   srandomDensity: randomDensity
-  //sCenterColor: center.color
 };
 var gameData;
 
-function createRoom(player1, player2) {
+function createRoom(p) {
   var room_id = crypto.randomBytes(16).toString("hex");
-
-  var spider1 = new Spider(-1,-1,player1.sessionId,player1.name);
-  var spider2 = new Spider(-1,-1,player2.sessionId,player2.name);
   var gamePlayers = [];
-  gamePlayers.push(spider1);
-  gamePlayers.push(spider2);
 
-  player1.state = 3;
-  player2.state = 3;
-  player1.room = room_id;
-  player2.room = room_id;
-
+  for(var i = 0;i<p.length;i++) {
+    player1 = getSessionBySocket(activeSessions,p[i]);
+    player1.state = 3;
+    player1.room = room_id;
+    var spider1 = new Spider(-1,-1,player1.sessionId,player1.name);
+    gamePlayers.push(spider1);
+    io.to(p[i]).emit('paired');
+  }
   init(room_id,gamePlayers);
-  io.to(player1.socketId).emit('paired');
-  io.to(player2.socketId).emit('paired');
-  io.sockets.emit('init', canvasData);
+  io.sockets.emit('init', canvasData); //look into this
   console.log("active rooms: " + rooms.length);
 
 }

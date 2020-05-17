@@ -3,16 +3,20 @@ let sessionId = sessionStorage.getItem('data');
 
 function startGame() {
   var name = document.getElementById("name").value;
-  socket.emit('register',name,sessionId);
+  var gameSize = document.getElementById("gameSize").value
+  socket.emit('register',name,sessionId,gameSize);
 }
 
 socket.on('register error', function(msg) {
   document.getElementById("error-msg").innerHTML = msg;
 });
 
-socket.on('joining', function() {
+socket.on('joining', function(msg) {
   document.getElementById("loading").style.display = "block";
   document.getElementById("myForm").style.display = "none";
+  if(msg!==undefined) {
+    document.getElementById("status").innerHTML = msg;
+  }
   console.log("joining ");
 });
 socket.on('info', function(msg) {
