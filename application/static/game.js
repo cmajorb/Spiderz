@@ -2,10 +2,9 @@ var socket = io();
 var canvas = document.getElementById("myCanvas");
 var ctx = canvas.getContext("2d");
 var size;
-var strokeStyle;
 var gapSize;
-var midX;
-var midY;
+var midX = 350;
+var midY = 350;
 var sections;
 var randomDensity;
 var tiles = [];
@@ -43,10 +42,7 @@ socket.on('player disconnect', function(name) {
 });
 socket.on('init', function(canvasData) {
   size = canvasData.sSize;
-  strokeStyle = canvasData.SstrokeStyle;
   gapSize = canvasData.sGapSize;
-  midX = canvasData.sMidX;
-  midY = canvasData.sMidY;
   sections = canvasData.sSections;
   randomDensity = canvasData.sRandomDensity;
   spiderSize = canvasData.sSpiderSize;

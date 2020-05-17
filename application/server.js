@@ -50,12 +50,13 @@ server.listen(process.env.PORT, function() {
 
 io.on('connection', function(socket) {
   socket.on('start-session', function(data) {
-    io.sockets.emit('init', canvasData); //need to fix
             if (getSessionById(activeSessions,data) != -1) {
               var client = getSessionById(activeSessions,data);
               console.log(client.sessionId+" rejoined");
               if(client.state == 3) {
                 socket.join(client.room);
+                var room = getRoomData(client.sessionId);
+                io.to(client.room).emit('init', room.canvasData);
               } else {
                 socket.join("mainRoom");
               }
@@ -125,19 +126,19 @@ io.on('connection', function(socket) {
 
     if(game.sGameState==0) {
       if(data == game.sCurrentPlayer.id) {
-        var currentNode = nodeSearch(game.sCurrentPlayer.r,game.sCurrentPlayer.angle,game.sHead);
-        var clickNode =  nodeSearch(polar.distance,polar.radians,game.sHead);
+        var currentNode = nodeSearch(game.sCurrentPlayer.r,game.sCurrentPlayer.angle,game.sHead,room.canvasData);
+        var clickNode =  nodeSearch(polar.distance,polar.radians,game.sHead,room.canvasData);
         if(clickNode.active == false || clickNode === center) {
           if(game.sCurrentPlayer.r==-1) {
-            if(clickNode.r==size-1) {
-              game.sCurrentPlayer.setLocation(clickNode.r,clickNode.angle,game);
-              nodeSearch(clickNode.r,clickNode.angle,game.sHead).setActive(colors[game.sPlayerData.indexOf(game.sCurrentPlayer)]);
+            if(clickNode.r==room.canvasData.sSize-1) {
+              game.sCurrentPlayer.setLocation(clickNode.r,clickNode.angle,game,room.canvasData);
+              nodeSearch(clickNode.r,clickNode.angle,game.sHead,room.canvasData).setActive(colors[game.sPlayerData.indexOf(game.sCurrentPlayer)]);
               updateGameState(room);
             }
           }
           else if(currentNode.up==clickNode || currentNode.down==clickNode || currentNode.left==clickNode || currentNode.right==clickNode) {
-            game.sCurrentPlayer.setLocation(clickNode.r,clickNode.angle,game);
-            nodeSearch(clickNode.r,clickNode.angle,game.sHead).setActive(colors[game.sPlayerData.indexOf(game.sCurrentPlayer)]);
+            game.sCurrentPlayer.setLocation(clickNode.r,clickNode.angle,game,room.canvasData);
+            nodeSearch(clickNode.r,clickNode.angle,game.sHead,room.canvasData).setActive(colors[game.sPlayerData.indexOf(game.sCurrentPlayer)]);
             updateGameState(room);
           }
         }
@@ -242,8 +243,8 @@ class Spider {
     this.activeTurn = false;
     this.name = name;
   }
-  setLocation(newr, newangle,game) {
-    var node = nodeSearch(newr,newangle,game.sHead);
+  setLocation(newr, newangle,game,canvasData) {
+    var node = nodeSearch(newr,newangle,game.sHead,canvasData);
     if(newr==0) {
       this.active = false;
       game.sWinner = this.name;
@@ -258,30 +259,13 @@ class Spider {
   }
 }
 
+var canvasSizes = [[10,10,30],[12,12,25],[14,14,25]];
 
-var size = 10;
-var strokeStyle = "rgba(0, 0, 0, 1)";
-var gapSize = 30;
-var midX = 350;
-var midY = 350;
-var sections = 10;
-var randomDensity = 0.2;
-var spiderSize = 3;
 
 var neutral = "rgba(192, 192, 192, 1)";
 var colors = ["rgba(255, 0, 0, 1)","rgba(0, 0, 255, 1)","rgba(255, 255, 0, 1)","rgba(0, 255, 0, 1)"];
 
-var canvasData = {
-  sSize: size,
-  sStrokeStyle: strokeStyle,
-  sGapSize: gapSize,
-  sMidX: midX,
-  sMidY:midY,
-  sSections: sections,
-  sSpiderSize: spiderSize,
-  srandomDensity: randomDensity
-};
-var gameData;
+
 
 function createRoom(p) {
   var room_id = crypto.randomBytes(16).toString("hex");
@@ -295,8 +279,15 @@ function createRoom(p) {
     gamePlayers.push(spider1);
     io.to(p[i]).emit('paired');
   }
-  init(room_id,gamePlayers);
-  io.sockets.emit('init', canvasData); //look into this
+  var canvasData = {
+    sRandomDensity: 0.25,
+    sSections: canvasSizes[p.length-2][0],
+    sSize: canvasSizes[p.length-2][1],
+    sGapSize: canvasSizes[p.length-2][2],
+    sSpiderSize: canvasSizes[p.length-2][2]/10
+  };
+  init(room_id,gamePlayers,canvasData);
+
   console.log("active rooms: " + rooms.length);
 
 }
@@ -350,12 +341,12 @@ function getSessionBySocket(array, key) {
   return -1;
 }
 
-function randomGenerate(newTiles,newActiveTiles,sHead) {
+function randomGenerate(newTiles,newActiveTiles,sHead,canvasData) {
   //randomly fill tiles
-  for(var i = 0;i<(sections*size)*randomDensity; i++) {
-    var r = (Math.floor(Math.random() * (size-1)))+1;
-    var angle = Math.floor(Math.random() * sections);
-    nodeSearch(r,angle,sHead).setActive(neutral);
+  for(var i = 0;i<(canvasData.sSections*canvasData.sSize)*canvasData.sRandomDensity; i++) {
+    var r = (Math.floor(Math.random() * (canvasData.sSize-1)))+1;
+    var angle = Math.floor(Math.random() * canvasData.sSections);
+    nodeSearch(r,angle,sHead,canvasData).setActive(neutral);
   }
 
   //push active tile info to the array
@@ -367,7 +358,7 @@ function randomGenerate(newTiles,newActiveTiles,sHead) {
 
 }
 
-function init(room_id, gamePlayers) {
+function init(room_id, gamePlayers,canvasData) {
   head = new LinkedTile(1,0);
   center = new CenterTile();
   gameState = -1;
@@ -379,8 +370,8 @@ function init(room_id, gamePlayers) {
   head.down = center;
   center.left = center;
   center.right = center;
-  recursiveRender(head,1,0,head,newTiles);
-  randomGenerate(newTiles,newActiveTiles,head);
+  recursiveRender(head,1,0,head,newTiles,canvasData);
+  randomGenerate(newTiles,newActiveTiles,head,canvasData);
   var currentPlayer = gamePlayers[0];
   currentPlayer.activeTurn = true;
   gameData = {
@@ -397,17 +388,21 @@ function init(room_id, gamePlayers) {
   };
   rooms.push({
     roomId: room_id,
-    gameData: gameData
+    gameData: gameData,
+    canvasData: canvasData
   });
+  io.to(room_id).emit('init', canvasData); //look into this
+
 }
 
 
 
 //checks if player is trapped and deactivates them if so
-function checkTraps(game) {
+function checkTraps(room) {
+  var game = room.gameData;
   for(var i = 0;i<game.sPlayerData.length;i++) {
     if(game.sPlayerData[i].r>0) {
-      var node = nodeSearch(game.sPlayerData[i].r,game.sPlayerData[i].angle,game.sHead);
+      var node = nodeSearch(game.sPlayerData[i].r,game.sPlayerData[i].angle,game.sHead,room.canvasData);
       if(node.down.active == true && node.left.active == true && node.right.active == true) {
           if(node.up) {
             if(node.up.active == true) {
@@ -444,7 +439,7 @@ function trapCheck(node) {
 
 function updateGameState(room) {
   var game = room.gameData;
-  checkTraps(game);
+  checkTraps(room);
   for(var i=0;i<game.sTiles.length;i++) {
     if(game.sTiles[i].active == true) {
       game.sActiveTiles.push([game.sTiles[i].r,game.sTiles[i].angle,game.sTiles[i].color]);
@@ -467,12 +462,12 @@ function updateGameState(room) {
 
 
 
-function nodeSearch(r, angle, head) {
+function nodeSearch(r, angle, head, canvasData) {
   if(r==0) {
     return center;
   }
   var currentNode = head;
-  if(r>=size || angle>sections-1 || angle < 0) {
+  if(r>=canvasData.sSize || angle>canvasData.sSections-1 || angle < 0) {
     return -1;
   }
   while(currentNode.r<r) {
@@ -483,8 +478,8 @@ function nodeSearch(r, angle, head) {
   }
   return currentNode;
 }
-function recursiveRender(node,r,angle,firstNode,newTiles) {
-  if(angle<sections-1) {
+function recursiveRender(node,r,angle,firstNode,newTiles,canvasData) {
+  if(angle<canvasData.sSections-1) {
     var nextNode = new LinkedTile(r,angle+1);
     newTiles.push(nextNode);
     nextNode.r = r;
@@ -493,13 +488,13 @@ function recursiveRender(node,r,angle,firstNode,newTiles) {
     nextNode.right = node;
     nextNode.down = node.down.left;
     node.down.left.up = nextNode;
-    recursiveRender(node.left,r,angle+1,firstNode,newTiles);
+    recursiveRender(node.left,r,angle+1,firstNode,newTiles,canvasData);
   }
   else {
-    if(r<size) {
+    if(r<canvasData.sSize) {
       node.left = firstNode;
       node.left.right = node;
-      if(r>=size-1) {
+      if(r>=canvasData.sSize-1) {
         return;
       }
       var nextNode = new LinkedTile(r+1,0);
@@ -508,7 +503,7 @@ function recursiveRender(node,r,angle,firstNode,newTiles) {
       nextNode.angle = 0;
       nextNode.down = node.left;
       node.left.up = nextNode;
-      recursiveRender(nextNode,r+1,0,nextNode,newTiles);
+      recursiveRender(nextNode,r+1,0,nextNode,newTiles,canvasData);
     }
   }
 }
