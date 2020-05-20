@@ -124,7 +124,7 @@ io.on('connection', function(socket) {
     var room = getRoomData(data);
     var game = room.gameData;
 
-    if(game.sGameState==0) {
+    if(game) {
       if(data == game.sCurrentPlayer.id) {
         var currentNode = nodeSearch(game.sCurrentPlayer.r,game.sCurrentPlayer.angle,game.sHead,room.canvasData);
         var clickNode =  nodeSearch(polar.distance,polar.radians,game.sHead,room.canvasData);
@@ -296,7 +296,11 @@ function endGame(room,name,reason) {
   if(reason == 0) {
     message = name + " has left the game";
   }else if(reason == 1) {
-    message = "The winner is " + name;
+    if(name==-1) {
+      message = "No one wins :(";
+    } else {
+      message = "The winner is " + name;
+    }
   }
   for(var i = 0; i<activeSessions.length; i++){
     if(activeSessions[i].room == room) {

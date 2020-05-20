@@ -21,10 +21,10 @@ spider.src = "/static/images/spider.png";
 spiderSelected.src = "/static/images/spider_selected.png";
 
 canvas.addEventListener("click", clickEvent);
-console.log(sessionId);
-socket.emit('start-session', sessionId);
-socket.emit('player connect',sessionId);
-socket.on('redirect', function() {
+  console.log(sessionId);
+  socket.emit('start-session', sessionId);
+  socket.emit('player connect',sessionId);
+  socket.on('redirect', function() {
   returnHome();
   console.log("redirect");
 });
