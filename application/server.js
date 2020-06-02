@@ -107,7 +107,7 @@ io.on('connection', function(socket) {
     if(room != -1 && client.state == 3) {
       var game = room.gameData;
       var sendInfo = {
-        sActiveTiles: game.sActiveTiles,
+        sActiveTiles: game.sValidTiles.concat(game.sActiveTiles),
         sGameState: game.sGameState,
         sPlayerData: game.sPlayerData,
         sCenterColor:game.sCenter.color,
@@ -146,7 +146,7 @@ io.on('connection', function(socket) {
         console.log(socket.id + " clicked");
       }
       var sendInfo = {
-        sActiveTiles: game.sActiveTiles,
+        sActiveTiles: game.sValidTiles.concat(game.sActiveTiles),
         sGameState: game.sGameState,
         sPlayerData: game.sPlayerData,
         sCenterColor:game.sCenter.color,
@@ -264,7 +264,7 @@ var canvasSizes = [[10,10,30],[12,12,25],[14,14,25]];
 
 var neutral = "rgba(192, 192, 192, 1)";
 var colors = ["rgba(255, 0, 0, 1)","rgba(0, 0, 255, 1)","rgba(255, 255, 0, 1)","rgba(0, 255, 0, 1)"];
-
+var validColor = "rgba(138, 43, 226, 0.5)";
 
 
 function createRoom(p) {
@@ -380,6 +380,7 @@ function init(room_id, gamePlayers,canvasData) {
   currentPlayer.activeTurn = true;
   gameData = {
     sActiveTiles: newActiveTiles,
+    sValidTiles: [],
     sGameState: 0,
     sPlayerData: gamePlayers,
     sCenterColor:center.color,
@@ -462,6 +463,17 @@ function updateGameState(room) {
   game.sCurrentPlayer.activeTurn = false;
   game.sCurrentPlayer = game.sPlayerData[game.sTurnCount%game.sPlayerData.length];
   game.sCurrentPlayer.activeTurn = true;
+  var currentNode = nodeSearch(game.sCurrentPlayer.r,game.sCurrentPlayer.angle,game.sHead,room.canvasData);
+  game.sValidTiles = [];
+  if(game.sCurrentPlayer.r != -1) {
+    if(currentNode.up) {
+      game.sValidTiles.push([currentNode.up.r,currentNode.up.angle,validColor]);
+    }
+    game.sValidTiles.push([currentNode.down.r,currentNode.down.angle,validColor]);
+    game.sValidTiles.push([currentNode.left.r,currentNode.left.angle,validColor]);
+    game.sValidTiles.push([currentNode.right.r,currentNode.right.angle,validColor]);
+  }
+
 }
 
 
