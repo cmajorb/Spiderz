@@ -29,11 +29,9 @@ canvas.addEventListener("click", clickEvent);
   console.log("redirect");
 });
 socket.on('state', function(gameData) {
-  console.log(":"+gameData.sPlayerData);
-  tiles = gameData.sActiveTiles;
+  tiles = gameData.sNodes;
   gameState = gameData.sGameState;
   players = gameData.sPlayerData;
-  centerColor = gameData.sCenterColor;
   winner = gameData.sWinner;
   drawGrid();
 });
@@ -46,7 +44,6 @@ socket.on('init', function(canvasData) {
   sections = canvasData.sSections;
   randomDensity = canvasData.sRandomDensity;
   spiderSize = canvasData.sSpiderSize;
-  centerColor = canvasData.sCenterColor;
   console.log("init run");
 });
 
@@ -62,7 +59,6 @@ socket.on("end game", function(message) {
 
 function returnHome() {
   window.location.href = "/";
-
 }
 
 function clickEvent(e) {
@@ -88,18 +84,27 @@ function Polar2cartesian(r,angle){
     cartesianCoor = { x:x, y:y }
     return cartesianCoor
 }
+function id2Cartesian(id) {
+  if(id==999) {
+    return(Polar2cartesian(0,0));
+  }
+  var r = Math.floor(id/sections)+1;
+  var t = id%sections;
+  return Polar2cartesian(r,t);
+}
 
 function drawGrid(){
+  var rings = size+1;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.strokeStyle = "black";
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.arc(midX, midY, gapSize*size, 0, Math.PI*2, false);
+  ctx.arc(midX, midY, gapSize*rings, 0, Math.PI*2, false);
   ctx.fillStyle = "white";
   ctx.fill();
   ctx.closePath();
 
-  for(var i =0; i<=size; i++) {
+  for(var i =0; i<=rings; i++) {
     ctx.beginPath();
     ctx.arc(midX, midY, gapSize*i, 0, Math.PI*2, false);
     ctx.stroke();
@@ -107,23 +112,32 @@ function drawGrid(){
   }
   ctx.beginPath();
   for(var i=0; i<(sections/2);i++) {
-    ctx.moveTo(size*gapSize*Math.cos((Math.PI/(sections/2))*i)+midX,size*gapSize*Math.sin((Math.PI/(sections/2))*i)+midY);
-    ctx.lineTo(size*gapSize*Math.cos((Math.PI/(sections/2))*i+Math.PI)+midX,size*gapSize*Math.sin((Math.PI/(sections/2))*i+Math.PI)+midY);
+    ctx.moveTo(rings*gapSize*Math.cos((Math.PI/(sections/2))*i)+midX,rings*gapSize*Math.sin((Math.PI/(sections/2))*i)+midY);
+    ctx.lineTo(rings*gapSize*Math.cos((Math.PI/(sections/2))*i+Math.PI)+midX,rings*gapSize*Math.sin((Math.PI/(sections/2))*i+Math.PI)+midY);
   }
   ctx.stroke();
 
   ctx.beginPath();
   ctx.arc(midX, midY, gapSize, 0, Math.PI*2, false);
-  ctx.fillStyle = centerColor;
+  ctx.fillStyle = 'green';
   ctx.fill();
   ctx.closePath();
 
-  ctx.lineWidth = gapSize;
-
   for(var i = 0; i<tiles.length; i++) {
-    ctx.strokeStyle = tiles[i][2];
+    if(tiles[i][0]==999) {
+      ctx.beginPath();
+      ctx.arc(midX, midY, gapSize, 0, Math.PI*2, false);
+      ctx.lineWidth = 8;
+      ctx.strokeStyle = tiles[i][1];
+      ctx.stroke();
+      ctx.closePath();
+    }
+    var r = Math.floor(tiles[i][0]/sections)+1;
+    var t = tiles[i][0]%sections;
+    ctx.strokeStyle = tiles[i][1];
+    ctx.lineWidth = gapSize;
     ctx.beginPath();
-    ctx.arc(midX, midY, gapSize*tiles[i][0]+gapSize/2, (Math.PI/(sections/2))*tiles[i][1], (Math.PI/(sections/2))*tiles[i][1]+(Math.PI/(sections/2)), false);
+    ctx.arc(midX, midY, gapSize*r+gapSize/2, (Math.PI/(sections/2))*t, (Math.PI/(sections/2))*t+(Math.PI/(sections/2)), false);
     ctx.stroke();
     ctx.closePath();
   }
@@ -133,9 +147,9 @@ function drawGrid(){
     if(players[i].activeTurn == true) {
       image = spiderSelected;
     }
-    var coor = Polar2cartesian(players[i].r,players[i].angle);
+    var coor = id2Cartesian(players[i].position);
     var position = [coor.x-gapSize*(spiderSize/2),coor.y-gapSize*(spiderSize/2),gapSize*spiderSize,gapSize*spiderSize];
-    if(players[i].r==-1) {
+    if(players[i].position==-1) {
       position = [0+i*gapSize*spiderSize,0,gapSize*spiderSize,gapSize*spiderSize];
     }
     ctx.drawImage(image, position[0],position[1],position[2],position[3]);

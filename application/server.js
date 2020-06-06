@@ -47,6 +47,15 @@ server.listen(process.env.PORT, function() {
   console.log('Starting server on port '+process.env.PORT);
 });
 
+function tester() {
+  activeSessions[0].name = "major";
+  activeSessions.push({sessionId: activeSessions[0].sessionId, socketId: 000, state: 1, name: "computer"});
+  activeSessions.push({sessionId: activeSessions[0].sessionId, socketId: 001, state: 1, name: "computer2"});
+  activeSessions.push({sessionId: activeSessions[0].sessionId, socketId: 002, state: 1, name: "computer3"});
+  createRoom([activeSessions[0].socketId,000,001,002]);
+
+}
+
 
 io.on('connection', function(socket) {
   socket.on('start-session', function(data) {
@@ -71,6 +80,8 @@ io.on('connection', function(socket) {
             }
             getSessionBySocket(activeSessions,socket.id).disconnectTime = 0;
             console.log("Number of active users: "+activeSessions.length);
+            //socket.join(123);
+            //tester();
 
         });
   socket.on('disconnect', function () {
@@ -82,6 +93,35 @@ io.on('connection', function(socket) {
     console.log(client.sessionId+ " has disconnected");
 
   });
+  socket.on('click', function(polar,data) {
+    var room = getRoomData(data);
+    var game = room.gameData;
+    if(game) {
+      var currentNode = game.sCurrentPlayer.position;
+      var clickNode =  nodeId(polar.distance,polar.radians,room.canvasData.sSize,room.canvasData.sSections);
+      if(data == game.sCurrentPlayer.id) {
+        if(checkAdjacent(currentNode,clickNode,game.sEdges)) {
+          game.sCurrentPlayer.position = clickNode;
+          game.sEdges = removeEdge(clickNode,game.sEdges);
+          game.sNodes.push([clickNode,colors[game.sCurrentPlayer.number]]);
+          if(clickNode == 999) {
+            game.sWinner = game.sCurrentPlayer.name;
+          }
+          updateGameState(room);
+          var validNodes = getValidMoves(game.sCurrentPlayer.position,game.sEdges);
+          var sendInfo = {
+            sGameState: game.sGameState,
+            sPlayerData: game.sPlayerData,
+            sNodes: game.sNodes.concat(validNodes),
+            sWinner:game.sWinner
+          };
+          io.to(room.roomId).emit('state', sendInfo);
+        }
+      } else {
+        console.log(socket.id + " clicked");
+      }
+    }
+  });
   socket.on('register', function(name,data,gameSize) {
     if(name) {
       console.log(data+" changed name to "+name);
@@ -92,6 +132,7 @@ io.on('connection', function(socket) {
       client.gameSize = gameSize;
       socket.join("waitRoom"+gameSize);
       socket.emit('joining');
+
     }
     else {
       console.log("Naming error");
@@ -106,54 +147,17 @@ io.on('connection', function(socket) {
 
     if(room != -1 && client.state == 3) {
       var game = room.gameData;
+      var validNodes = getValidMoves(game.sCurrentPlayer.position,game.sEdges);
       var sendInfo = {
-        sActiveTiles: game.sValidTiles.concat(game.sActiveTiles),
+        sNodes: game.sNodes.concat(validNodes),
         sGameState: game.sGameState,
         sPlayerData: game.sPlayerData,
-        sCenterColor:game.sCenter.color,
         sWinner:game.sWinner,
       };
       socket.emit('state', sendInfo);
     }
     else {
       socket.emit('redirect');
-    }
-  });
-
-  socket.on('click', function(polar,data) {
-    var room = getRoomData(data);
-    var game = room.gameData;
-
-    if(game) {
-      if(data == game.sCurrentPlayer.id) {
-        var currentNode = nodeSearch(game.sCurrentPlayer.r,game.sCurrentPlayer.angle,game.sHead,room.canvasData);
-        var clickNode =  nodeSearch(polar.distance,polar.radians,game.sHead,room.canvasData);
-        if(clickNode.active == false || clickNode === center) {
-          if(game.sCurrentPlayer.r==-1) {
-            if(clickNode.r==room.canvasData.sSize-1) {
-              game.sCurrentPlayer.setLocation(clickNode.r,clickNode.angle,game,room.canvasData);
-              nodeSearch(clickNode.r,clickNode.angle,game.sHead,room.canvasData).setActive(colors[game.sPlayerData.indexOf(game.sCurrentPlayer)]);
-              updateGameState(room);
-            }
-          }
-          else if(currentNode.up==clickNode || currentNode.down==clickNode || currentNode.left==clickNode || currentNode.right==clickNode) {
-            game.sCurrentPlayer.setLocation(clickNode.r,clickNode.angle,game,room.canvasData);
-            nodeSearch(clickNode.r,clickNode.angle,game.sHead,room.canvasData).setActive(colors[game.sPlayerData.indexOf(game.sCurrentPlayer)]);
-            updateGameState(room);
-          }
-        }
-      } else {
-        console.log(socket.id + " clicked");
-      }
-      var sendInfo = {
-        sActiveTiles: game.sValidTiles.concat(game.sActiveTiles),
-        sGameState: game.sGameState,
-        sPlayerData: game.sPlayerData,
-        sCenterColor:game.sCenter.color,
-        sWinner:game.sWinner,
-      };
-      io.to(room.roomId).emit('state', sendInfo);
-
     }
   });
 });
@@ -194,91 +198,38 @@ setInterval(function() {
 
 }, refreshRate);
 
-
-
-class LinkedTile {
-    constructor(r,angle) {
-        this.r = r;
-        this.angle = angle;
-        this.active = false;
-        this.up = null;
-        this.down = null;
-        this.left = null;
-        this.right = null;
-        this.explored = false;
-        this.trapped = true;
-        this.color = neutral;
-    }
-    setActive(color) {
-      this.active = true;
-      this.color = color;
-    }
-}
-class CenterTile {
-  constructor() {
-    this.r = 0;
-    this.angle = 0;
-    this.active = false;
-    this.left = null;
-    this.right = null;
-    this.up = null;
-    this.down = null;
-    this.color = "green";
-  }
-  setActive() {
-    //this.active = true;
-    this.color = "blue";
-  }
-  reset() {
-    this.active = false;
-    this.color = "green";
-  }
-}
 class Spider {
-  constructor(r,angle,id,name) {
-    this.r = r;
-    this.angle = angle;
-    this.active = true;
+  constructor(id,name,number) {
+    this.position = -1;
     this.id = id;
     this.activeTurn = false;
     this.name = name;
-  }
-  setLocation(newr, newangle,game,canvasData) {
-    var node = nodeSearch(newr,newangle,game.sHead,canvasData);
-    if(newr==0) {
-      this.active = false;
-      game.sWinner = this.name;
-    }
-    this.r = newr;
-    this.angle = newangle;
-  }
-  reset() {
-    this.r = -1;
-    this.angle = -1;
-    this.active = true;
+    this.isTrapped = false;
+    this.number = number;
   }
 }
 
-var canvasSizes = [[10,10,30],[12,12,25],[14,14,25]];
+var canvasSizes = [[10,9,30],[12,11,25],[14,13,25]];
 
-
-var neutral = "rgba(192, 192, 192, 1)";
-var colors = ["rgba(255, 0, 0, 1)","rgba(0, 0, 255, 1)","rgba(255, 255, 0, 1)","rgba(0, 255, 0, 1)"];
-var validColor = "rgba(138, 43, 226, 0.5)";
+var neutral = "#c0c0c0";
+var colors = ["#FF0000","#0000FF","#FFFF00","#00FF00"];
+var validColor = "#e0bfff";
 
 
 function createRoom(p) {
   var room_id = crypto.randomBytes(16).toString("hex");
+  //var room_id = 123;
   var gamePlayers = [];
 
   for(var i = 0;i<p.length;i++) {
     player1 = getSessionBySocket(activeSessions,p[i]);
     player1.state = 3;
     player1.room = room_id;
-    var spider1 = new Spider(-1,-1,player1.sessionId,player1.name);
+    var spider1 = new Spider(player1.sessionId,player1.name,i);
     gamePlayers.push(spider1);
     io.to(p[i]).emit('paired');
   }
+
   var canvasData = {
     sRandomDensity: 0.25,
     sSections: canvasSizes[p.length-2][0],
@@ -344,51 +295,108 @@ function getSessionBySocket(array, key) {
     }
   return -1;
 }
-
-function randomGenerate(newTiles,newActiveTiles,sHead,canvasData) {
-  //randomly fill tiles
-  for(var i = 0;i<(canvasData.sSections*canvasData.sSize)*canvasData.sRandomDensity; i++) {
-    var r = (Math.floor(Math.random() * (canvasData.sSize-1)))+1;
-    var angle = Math.floor(Math.random() * canvasData.sSections);
-    nodeSearch(r,angle,sHead,canvasData).setActive(neutral);
+function sortFunction(a, b) {
+    if (a[0] === b[0]) {
+        return 0;
+    }
+    else {
+        return (a[0] < b[0]) ? -1 : 1;
+    }
+}
+function testMap(sections,rings,newedges,numPlayers,allShortPaths) {
+  validPaths = 0;
+  var shortPath;
+  for(var i = (sections*rings)-1; i>=(sections*rings)-sections; i--) {
+      shortPath = shortestPath(i,999,sections*rings,newedges);
+      if(shortPath!=-1) {
+        allShortPaths.push(shortPath);
+        validPaths++;
+      }
   }
-
-  //push active tile info to the array
-  for(var i = 0;i<newTiles.length;i++) {
-    if(newTiles[i].active) {
-      newActiveTiles.push([newTiles[i].r,newTiles[i].angle,newTiles[i].color]);
+  if(validPaths>0) {
+    return true;
+  } else {
+    return false;
+  }
+}
+function randomGenerate(sections,rings,randomDensity,edges,numPlayer) {
+  //randomly fill tiles
+  var isValid = false;
+  while(!isValid) {
+    var originalEdges = [...edges];
+    var nodesList = [];
+    for(var i = 0;i<(sections*rings)*randomDensity; i++) {
+      var randomNode = Math.floor(Math.random() * sections * rings);
+      nodesList.push([randomNode,neutral]);
+      originalEdges = removeAllEdges(randomNode,originalEdges);
+      newedges = [...originalEdges];
+    }
+    var bestPathLengths = [];
+    for(var i = 0;i<numPlayer;i++) {
+      var allShortPaths = [];
+      isValid = testMap(sections,rings,newedges,2,allShortPaths);
+      if(isValid) {
+        var bestPath = allShortPaths.sort(sortFunction)[0];
+        bestPathLengths.push(bestPath.length);
+        while(bestPath[1].length > 0) {
+          removeAllEdges(bestPath[1].pop(),newedges);
+        }
+        if(bestPathLengths[i]>bestPathLengths[0]+1) {
+               isValid = false;
+        }
+      } else {
+        break;
+      }
     }
   }
-
+  return [nodesList,originalEdges];
+}
+function removeAllEdges(key,edges){
+  for(var i = edges.length-1; i>=0; i--) {
+    if(edges[i][0]==key || edges[i][1]==key) {
+      edges.splice(i,1);
+    }
+  }
+  return edges;
+}
+function removeEdge(key,edges){
+  if(key==999) {
+    return edges;
+  }
+  for(var i = edges.length-1; i>=0; i--) {
+    if(edges[i][0]==key) {
+      edges.splice(i,1);
+    }
+  }
+  return edges;
 }
 
+function checkAdjacent(fromNode,toNode,edges) {
+  for(var i = 0; i<edges.length; i++) {
+    if(edges[i][0]==toNode && edges[i][1]==fromNode) {
+      return true;
+    }
+  }
+  return false;
+}
 function init(room_id, gamePlayers,canvasData) {
-  head = new LinkedTile(1,0);
-  center = new CenterTile();
   gameState = -1;
   winner = -1;
-  var newTiles = [];
-  var newActiveTiles = [];
-  newTiles.push(head);
+  var edges = linearRender(canvasData.sSections,canvasData.sSize)
+  var newNodes = randomGenerate(canvasData.sSections,canvasData.sSize,canvasData.sRandomDensity,edges,gamePlayers.length);
+  var nodes = newNodes[0];
+  edges = newNodes[1];
 
-  head.down = center;
-  center.left = center;
-  center.right = center;
-  recursiveRender(head,1,0,head,newTiles,canvasData);
-  randomGenerate(newTiles,newActiveTiles,head,canvasData);
   var currentPlayer = gamePlayers[0];
   currentPlayer.activeTurn = true;
   gameData = {
-    sActiveTiles: newActiveTiles,
+    sNodes: nodes,
+    sEdges: edges,
     sValidTiles: [],
     sGameState: 0,
     sPlayerData: gamePlayers,
-    sCenterColor:center.color,
     sWinner:winner,
-    sTiles:newTiles,
-    sHead: head,
     sTurnCount: 0,
-    sCenter: center,
     sCurrentPlayer: currentPlayer
   };
   rooms.push({
@@ -400,56 +408,34 @@ function init(room_id, gamePlayers,canvasData) {
 
 }
 
-
-
+function isTrapped(position,edges) {
+  for(var i = 0; i<edges.length; i++) {
+    if(edges[i][1]==position) {
+      return false;
+    }
+  }
+  return true;
+}
+function getValidMoves(position,edges) {
+  var nodes = [];
+  for(var i = 0; i<edges.length; i++) {
+    if(edges[i][1]==position) {
+      nodes.push([edges[i][0],validColor]);
+    }
+  }
+  return nodes;
+}
 //checks if player is trapped and deactivates them if so
 function checkTraps(room) {
   var game = room.gameData;
   for(var i = 0;i<game.sPlayerData.length;i++) {
-    if(game.sPlayerData[i].r>0) {
-      var node = nodeSearch(game.sPlayerData[i].r,game.sPlayerData[i].angle,game.sHead,room.canvasData);
-      if(node.down.active == true && node.left.active == true && node.right.active == true) {
-          if(node.up) {
-            if(node.up.active == true) {
-              game.sPlayerData[i].active = false;
-            }
-          }
-          else {
-            game.sPlayerData[i].active = false;
-          }
-      }
-    }
+    game.sPlayerData[i].isTrapped = isTrapped(game.sPlayerData[i].position,game.sEdges);
   }
-}
-function trapCheck(node) {
-  node.explored = true;
-  //console.log("exploring "+node.r+","+node.angle);
-    if(node.left.explored == false && node.left.active == false) {
-      node.left.trapped = false;
-      trapCheck(node.left);
-    }
-    if(node.right.explored == false && node.right.active == false) {
-      node.right.trapped = false;
-      trapCheck(node.right);
-    }
-    if(node.down !== center && node.down.explored == false && node.down.active == false) {
-      node.down.trapped = false;
-      trapCheck(node.down);
-    }
-    if(node.up && node.up.explored == false && node.up.active == false) {
-      node.up.trapped = false;
-      trapCheck(node.up);
-    }
 }
 
 function updateGameState(room) {
   var game = room.gameData;
   checkTraps(room);
-  for(var i=0;i<game.sTiles.length;i++) {
-    if(game.sTiles[i].active == true) {
-      game.sActiveTiles.push([game.sTiles[i].r,game.sTiles[i].angle,game.sTiles[i].color]);
-    }
-  }
   var c = 0;
   do {
     c++;
@@ -457,69 +443,97 @@ function updateGameState(room) {
     if(c>game.sPlayerData.length) {
       game.sGameState = 1;
       endGame(room.roomId,game.sWinner,1)
+      return;
     }
   }
-  while(game.sPlayerData[game.sTurnCount%game.sPlayerData.length].active == false && c<=game.sPlayerData.length);
+  while(game.sPlayerData[game.sTurnCount%game.sPlayerData.length].isTrapped == true && c<=game.sPlayerData.length);
+
   game.sCurrentPlayer.activeTurn = false;
   game.sCurrentPlayer = game.sPlayerData[game.sTurnCount%game.sPlayerData.length];
   game.sCurrentPlayer.activeTurn = true;
-  var currentNode = nodeSearch(game.sCurrentPlayer.r,game.sCurrentPlayer.angle,game.sHead,room.canvasData);
-  game.sValidTiles = [];
-  if(game.sCurrentPlayer.r != -1) {
-    if(currentNode.up) {
-      game.sValidTiles.push([currentNode.up.r,currentNode.up.angle,validColor]);
-    }
-    game.sValidTiles.push([currentNode.down.r,currentNode.down.angle,validColor]);
-    game.sValidTiles.push([currentNode.left.r,currentNode.left.angle,validColor]);
-    game.sValidTiles.push([currentNode.right.r,currentNode.right.angle,validColor]);
-  }
-
 }
 
-
-
-function nodeSearch(r, angle, head, canvasData) {
-  if(r==0) {
-    return center;
+function nodeId(r,t,rings,sections) {
+  var id = ((r-1)*(rings+1)+t);
+  if(r == 0) {
+    return 999;
   }
-  var currentNode = head;
-  if(r>=canvasData.sSize || angle>canvasData.sSections-1 || angle < 0) {
+  if(r > rings) {
     return -1;
+  } else {
+    return id;
   }
-  while(currentNode.r<r) {
-    currentNode = currentNode.up;
-  }
-  while(currentNode.angle!==angle) {
-      currentNode = currentNode.left;
-  }
-  return currentNode;
 }
-function recursiveRender(node,r,angle,firstNode,newTiles,canvasData) {
-  if(angle<canvasData.sSections-1) {
-    var nextNode = new LinkedTile(r,angle+1);
-    newTiles.push(nextNode);
-    nextNode.r = r;
-    nextNode.angle = angle+1;
-    node.left = nextNode;
-    nextNode.right = node;
-    nextNode.down = node.down.left;
-    node.down.left.up = nextNode;
-    recursiveRender(node.left,r,angle+1,firstNode,newTiles,canvasData);
-  }
-  else {
-    if(r<canvasData.sSize) {
-      node.left = firstNode;
-      node.left.right = node;
-      if(r>=canvasData.sSize-1) {
-        return;
+
+function linearRender(sections,rings) {
+  var edges = [];
+  var currentIndex;
+  for(var r = 0; r < rings; r++) {
+    for(var t = 0; t < sections; t++) {
+      currentIndex = (r*sections)+t;
+      if(t==sections-1) {
+        edges.push([currentIndex,currentIndex-(sections-1)]); //right
+      } else {
+        edges.push([currentIndex,currentIndex+1]); //right
       }
-      var nextNode = new LinkedTile(r+1,0);
-      newTiles.push(nextNode);
-      nextNode.r = r+1;
-      nextNode.angle = 0;
-      nextNode.down = node.left;
-      node.left.up = nextNode;
-      recursiveRender(nextNode,r+1,0,nextNode,newTiles,canvasData);
+      if(t==0) {
+        edges.push([currentIndex,currentIndex+(sections-1)]); //left
+      } else {
+        edges.push([currentIndex,currentIndex-1]); //left
+      }
+      if(r==0){
+        edges.push([999,currentIndex]); //down
+      } else {
+        edges.push([currentIndex,currentIndex-sections]); //down
+      }
+      if(r==rings-1) {
+        edges.push([currentIndex,-1]); //up
+      } else {
+        edges.push([currentIndex,currentIndex+sections]); //up
+      }
     }
   }
+  return edges;
+
+}
+
+function shortestPath(src,dest,numVertices,edges) {
+  var queue = [];
+  var visited = [];
+  var pred = [];
+  var dist = [];
+  var path = [];
+  for (var i = 0; i < numVertices; i++) {
+        visited.push(false);
+        dist.push(9999);
+        pred.push(-1);
+  }
+  visited[src] = true;
+  dist[src] = 0;
+  queue.push(src);
+
+  while (queue.length != 0) {
+        var u = queue.shift();
+        for (var i = 0; i < edges.length; i++) {
+          if(edges[i][1] == u) {
+            if(edges[i][0] == 999) {
+              path.push(u);
+              var crawl = edges[i][1];
+              while (pred[crawl] != -1) {
+                path.push(pred[crawl]);
+                crawl = pred[crawl];
+              }
+              return [dist[edges[i][1]] + 1,path];
+            }
+            else if(visited[edges[i][0]] == false) {
+                visited[edges[i][0]] = true;
+                dist[edges[i][0]] = dist[u] + 1;
+                pred[edges[i][0]] = u;
+                queue.push(edges[i][0]);
+            }
+
+          }
+        }
+    }
+    return -1;
 }
