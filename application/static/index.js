@@ -1,9 +1,11 @@
 var socket = io();
 let sessionId = sessionStorage.getItem('data');
+document.getElementById("name").value = sessionStorage.getItem('name');
 
 function startGame() {
   var name = document.getElementById("name").value;
   var gameSize = document.getElementById("gameSize").value
+  sessionStorage.setItem('name', name);
   socket.emit('register',name,sessionId,gameSize);
 }
 
