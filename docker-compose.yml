@@ -2,9 +2,15 @@ version: "2"
 services:
   app:
     build: ./application
+    image: app
+    container_name: app
     environment:
       - PORT=5000
     ports:
       - "5000:5000"
     volumes:
       - ./application:/usr/src/app/application
+  db:
+    build: ./mysql
+    image: mysql
+    container_name: mysql

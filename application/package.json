@@ -18,8 +18,8 @@
   },
   "homepage": "https://github.com/cmajorb/Spiderz#readme",
   "dependencies": {
+    "@mysql/xdevapi": "^8.0.20",
     "express": "^4.17.1",
-    "redis": "^3.0.2",
     "socket.io": "^2.3.0"
   }
 }

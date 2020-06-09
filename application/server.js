@@ -4,6 +4,7 @@ var http = require('http');
 var path = require('path');
 var socketIO = require('socket.io');
 const crypto = require("crypto");
+var mysqlx = require('@mysql/xdevapi');
 
 var app = express();
 var server = http.Server(app);
@@ -73,7 +74,7 @@ io.on('connection', function(socket) {
               socket.emit("set-session-acknowledgement", data);
             } else {
               var session_id = crypto.randomBytes(16).toString("hex"); //generating the sessions_id and then binding that socket to that sessions
-              activeSessions.push({sessionId: session_id, socketId: socket.id, state: 1});
+              activeSessions.push({sessionId: session_id, socketId: socket.id, state: 1, ip: socket.handshake.address});
               console.log(session_id + " joined for first time");
               socket.emit("set-session-acknowledgement", session_id);
               socket.join("mainRoom");
@@ -101,10 +102,12 @@ io.on('connection', function(socket) {
       var clickNode =  nodeId(polar.distance,polar.radians,room.canvasData.sSize,room.canvasData.sSections);
       if(data == game.sCurrentPlayer.id) {
         if(checkAdjacent(currentNode,clickNode,game.sEdges)) {
+          room.statsData.turns[game.sCurrentPlayer.number]++;
           game.sCurrentPlayer.position = clickNode;
           game.sEdges = removeEdge(clickNode,game.sEdges);
           game.sNodes.push([clickNode,colors[game.sCurrentPlayer.number]]);
           if(clickNode == 999) {
+            room.statsData.winners.push(game.sCurrentPlayer.number)
             game.sWinner = game.sCurrentPlayer.name;
           }
           updateGameState(room);
@@ -242,7 +245,7 @@ function createRoom(p) {
   console.log("active rooms: " + rooms.length);
 
 }
-function endGame(room,name,reason) {
+function endGame(roomId,name,reason) {
   var message;
   if(reason == 0) {
     message = name + " has left the game";
@@ -254,13 +257,47 @@ function endGame(room,name,reason) {
     }
   }
   for(var i = 0; i<activeSessions.length; i++){
-    if(activeSessions[i].room == room) {
+    if(activeSessions[i].room == roomId) {
       activeSessions[i].state = 1;
     }
   }
-  io.to(room).emit('end game', message);
-  removeRoom(room);
+  postStats(roomId);
+  io.to(roomId).emit('end game', message);
   console.log("active rooms: " + rooms.length);
+}
+function postStats(roomId) {
+  var room = getRoomById(roomId);
+  var stats = room.statsData;
+  console.log("logging stats");
+  var data = [stats.startTime, new Date().toISOString().slice(0, 19).replace('T', ' ')]
+  var query = ['Start_Time','End_Time'];
+
+  for(var i = 0; i < room.gameData.sPlayerData.length; i++) {
+      var player = getSessionById(activeSessions,room.gameData.sPlayerData[i].id);
+      data.push(player.name,player.ip,stats.turns[i]);
+      query.push('Player'+(i+1)+'_Name','Player'+(i+1)+'_ip','Player'+(i+1)+'_moves');
+  }
+  var x = 1;
+  for(var i = stats.winners.length - 1; i >= 0; i--) {
+      data.push(stats.winners[i]+1);
+      query.push('Place_'+x);
+      x++;
+  }
+
+  mysqlx
+    .getSession({
+      user: 'root',
+      password: 'root',
+      host: 'db',
+      port: '33060'
+    }).then(function (session) {
+      myTable = session.getSchema('mysql').getTable('Stats');
+      return myTable
+        .insert(query)
+        .values(data)
+        .execute()
+        removeRoom(room);
+    });
 }
 function removeRoom(id) {
   for(var i = 0; i<rooms.length; i++){
@@ -274,6 +311,14 @@ function getRoomData(id) {
   var client = getSessionById(activeSessions,id)
   for(var i = 0; i<rooms.length; i++){
     if(rooms[i].roomId == client.room) {
+      return rooms[i];
+    }
+  }
+  return -1;
+}
+function getRoomById(id) {
+  for(var i = 0; i<rooms.length; i++){
+    if(rooms[i].roomId == id) {
       return rooms[i];
     }
   }
@@ -389,6 +434,12 @@ function init(room_id, gamePlayers,canvasData) {
 
   var currentPlayer = gamePlayers[0];
   currentPlayer.activeTurn = true;
+  statsData = {
+    startTime: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    turnCount: 0,
+    winners: [],
+    turns: [0,0,0,0]
+  }
   gameData = {
     sNodes: nodes,
     sEdges: edges,
@@ -402,7 +453,8 @@ function init(room_id, gamePlayers,canvasData) {
   rooms.push({
     roomId: room_id,
     gameData: gameData,
-    canvasData: canvasData
+    canvasData: canvasData,
+    statsData: statsData
   });
   io.to(room_id).emit('init', canvasData); //look into this
 
@@ -448,6 +500,7 @@ function updateGameState(room) {
   }
   while(game.sPlayerData[game.sTurnCount%game.sPlayerData.length].isTrapped == true && c<=game.sPlayerData.length);
 
+  room.statsData.turnCount++;
   game.sCurrentPlayer.activeTurn = false;
   game.sCurrentPlayer = game.sPlayerData[game.sTurnCount%game.sPlayerData.length];
   game.sCurrentPlayer.activeTurn = true;

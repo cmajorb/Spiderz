@@ -1,0 +1,22 @@
+CREATE TABLE Stats (
+  ID int(11) NOT NULL AUTO_INCREMENT,
+  Start_Time datetime DEFAULT NULL,
+  End_Time datetime DEFAULT NULL,
+  Player1_Name varchar(50) DEFAULT NULL,
+  Player1_ip varchar(50) DEFAULT NULL,
+  Player1_moves int(3) DEFAULT NULL,
+  Player2_Name varchar(50) DEFAULT NULL,
+  Player2_ip varchar(50) DEFAULT NULL,
+  Player2_moves int(3) DEFAULT NULL,
+  Player3_Name varchar(50) DEFAULT NULL,
+  Player3_ip varchar(50) DEFAULT NULL,
+  Player3_moves int(3) DEFAULT NULL,
+  Player4_Name varchar(50) DEFAULT NULL,
+  Player4_ip varchar(50) DEFAULT NULL,
+  Player4_moves int(3) DEFAULT NULL,
+  Place_1 int(2) DEFAULT NULL,
+  Place_2 int(2) DEFAULT NULL,
+  Place_3 int(2) DEFAULT NULL,
+  Place_4 varchar(2) DEFAULT NULL,
+  PRIMARY KEY (ID)
+);
