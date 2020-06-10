@@ -193,7 +193,9 @@ setInterval(function() {
 
   for(var i = 0; i<activeSessions.length; i++) {
     if(activeSessions[i].disconnectTime != 0 && (Date.now()-activeSessions[i].disconnectTime)/1000 > dTime) {
-          endGame(activeSessions[i].room,activeSessions[i].name,0);
+          if(activeSessions[i].room) {
+            endGame(activeSessions[i].room,activeSessions[i].name,0);
+          }
           console.log(activeSessions[i].name + " has been deactivated");
           activeSessions.splice(i, 1);
     }
@@ -255,13 +257,14 @@ function endGame(roomId,name,reason) {
     } else {
       message = "The winner is " + name;
     }
+    postStats(roomId);
   }
   for(var i = 0; i<activeSessions.length; i++){
     if(activeSessions[i].room == roomId) {
       activeSessions[i].state = 1;
     }
   }
-  postStats(roomId);
+  removeRoom(roomId);
   io.to(roomId).emit('end game', message);
   console.log("active rooms: " + rooms.length);
 }
@@ -296,7 +299,6 @@ function postStats(roomId) {
         .insert(query)
         .values(data)
         .execute()
-        removeRoom(room);
     });
 }
 function removeRoom(id) {
