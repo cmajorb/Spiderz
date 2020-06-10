@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Spiderz</title>
+    <link rel="stylesheet" href="/static/mainstyle.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.2.1/css/bootstrap.min.css" crossorigin="anonymous">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.2.1/js/bootstrap.min.js"></script>
+</head>
+<body>
+<h1>Stats</h1>
+<h2>Summary</h2>
+<table id="summary" class="table thead-light table-striped table-bordered">
+<tr>
+    <th>Player 1 Wins</th>
+    <th>Player 2 Wins</th>
+    <th>Average Game Length</th>
+    <th>Total Games</th>
+
+</tr>
+</table>
+<h2>Scoreboard</h2>
+<table id="scoreboard" class="table thead-light table-striped table-bordered">
+<tr>
+    <th>Player</th>
+    <th>Wins</th>
+</tr>
+</table>
+<h2>Log</h2>
+
+<table id="data" class="table thead-light table-striped table-bordered">
+<tr>
+    <th>Game Length</th>
+    <th>Player 1</th>
+    <th>Moves</th>
+    <th>Player 2</th>
+    <th>Moves</th>
+    <th>Player 3</th>
+    <th>Moves</th>
+    <th>Player 4</th>
+    <th>Moves</th>
+    <th>1st Place</th>
+    <th>2nd Place</th>
+    <th>3rd Place</th>
+    <th>4th Place</th>
+</tr>
+</table>
+</body>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/static/stats.js"></script>
+</html>

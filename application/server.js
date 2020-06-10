@@ -43,6 +43,9 @@ app.get('/info', function(request, response) {
     response.sendFile(path.join(__dirname, 'info.html'));
   }
 });
+app.get('/stats', function(request, response) {
+    response.sendFile(path.join(__dirname, 'stats.html'));
+});
 // Starts the server.
 server.listen(process.env.PORT, function() {
   console.log('Starting server on port '+process.env.PORT);
@@ -142,6 +145,63 @@ io.on('connection', function(socket) {
       var msg = "Name cannot be blank";
       socket.emit('register error', msg);
     }
+  });
+  socket.on('get stats', function(data) {
+    var result;
+    mysqlx
+      .getSession({
+        user: 'root',
+        password: 'root',
+        host: 'db',
+        port: '33060'
+      }).then(function (s) {
+          session = s;
+          return session.getSchema('mysql');
+      }).then(function () {
+        return session
+          .sql("SELECT End_Time-Start_Time, Player1_Name, Player1_moves,"+
+          "COALESCE(Player2_Name,''), COALESCE(Player2_moves,''), COALESCE(Player3_Name,''), COALESCE(Player3_moves,''), "+
+          "COALESCE(Player4_Name,''), COALESCE(Player4_moves,''), COALESCE(Place_1,''), COALESCE(Place_2,''), COALESCE(Place_3,''), "+
+          "COALESCE(Place_4,'') FROM mysql.Stats LIMIT 10;")
+          .execute()
+      }).then(function (result) {
+        var data = result.fetchAll();
+        socket.emit('stats',data);
+      }).then(function () {
+        return session
+          .sql("SELECT "+
+                "CASE WHEN Place_1 = 1 THEN Player1_name "+
+                "WHEN Place_1 = 2 THEN Player2_name "+
+                "WHEN Place_1 = 3 THEN Player3_name "+
+                "WHEN Place_1 = 4 THEN Player4_name END AS Name,"+
+                "COUNT(*) AS Wins "+
+                "FROM mysql.Stats "+
+                "GROUP BY "+
+                "CASE WHEN Place_1 = 1 THEN Player1_name "+
+                "WHEN Place_1 = 2 THEN Player2_name "+
+                "WHEN Place_1 = 3 THEN Player3_name "+
+                "WHEN Place_1 = 4 THEN Player4_name END "+
+                "ORDER BY COUNT(*) DESC "+
+                "LIMIT 10;")
+          .execute()
+      }).then(function (result) {
+        var data = result.fetchAll();
+        socket.emit('scoreboard',data);
+      }).then(function () {
+        return session
+          .sql("SELECT "+
+                "ROUND(SUM(CASE WHEN Place_1 = 1 THEN 1 END)/COUNT(*),2) AS Wins_1, "+
+                "ROUND(SUM(CASE WHEN Place_1 = 2 THEN 1 END) /COUNT(*),2) AS Wins_2, "+
+                "ROUND(AVG(End_Time-Start_Time),2) AS AverageTime, "+
+                "COUNT(*) AS Total "+
+                "FROM mysql.Stats "+
+                "WHERE "+
+                "Player3_name IS NULL AND Player4_name IS NULL;")
+          .execute()
+      }).then(function (result) {
+        var data = result.fetchAll();
+        socket.emit('summary',data);
+      });
   });
   socket.on('player connect', function(data) {
     //verify the user
