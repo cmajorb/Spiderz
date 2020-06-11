@@ -207,7 +207,7 @@ io.on('connection', function(socket) {
                 "COALESCE(ROUND(SUM(CASE WHEN ISNULL(Place_1) AND ISNULL(Place_2) THEN 1 END)/COUNT(*),2),0) AS Draw, "+
                 "COALESCE(ROUND(SUM(CASE WHEN Place_1 = 1 THEN 1 END)/COUNT(*),2),0) AS Wins_1, "+
                 "COALESCE(ROUND(SUM(CASE WHEN Place_1 = 2 THEN 1 END) /COUNT(*),2),0) AS Wins_2, "+
-                "SEC_TO_TIME(AVG(TIMEDIFF(End_Time,Start_Time))) AS AverageTime, "+
+                "SEC_TO_TIME(AVG(TIMESTAMPDIFF(SECOND,Start_Time,End_Time))) AS AverageTime, "+
                 "COUNT(*) AS Total "+
                 "FROM mysql.Stats "+
                 "WHERE "+
