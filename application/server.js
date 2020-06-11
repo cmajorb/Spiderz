@@ -159,10 +159,23 @@ io.on('connection', function(socket) {
           return session.getSchema('mysql');
       }).then(function () {
         return session
-          .sql("SELECT End_Time-Start_Time, Player1_Name, Player1_moves,"+
-          "COALESCE(Player2_Name,''), COALESCE(Player2_moves,''), COALESCE(Player3_Name,''), COALESCE(Player3_moves,''), "+
-          "COALESCE(Player4_Name,''), COALESCE(Player4_moves,''), COALESCE(Place_1,''), COALESCE(Place_2,''), COALESCE(Place_3,''), "+
-          "COALESCE(Place_4,'') FROM mysql.Stats LIMIT 10;")
+          .sql("SELECT "+
+          "TIMEDIFF(End_Time,Start_Time), "+
+          "Player1_Name, "+
+          "Player1_moves,"+
+          "COALESCE(Player2_Name,''), "+
+          "COALESCE(Player2_moves,''), "+
+          "COALESCE(Player3_Name,''), "+
+          "COALESCE(Player3_moves,''), "+
+          "COALESCE(Player4_Name,''), "+
+          "COALESCE(Player4_moves,''), "+
+          "COALESCE(Place_1,''), "+
+          "COALESCE(Place_2,''), "+
+          "COALESCE(Place_3,''), "+
+          "COALESCE(Place_4,'') "+
+          "FROM mysql.Stats "+
+          "ORDER BY Start_Time DESC "+
+          "LIMIT 10;")
           .execute()
       }).then(function (result) {
         var data = result.fetchAll();
@@ -176,6 +189,7 @@ io.on('connection', function(socket) {
                 "WHEN Place_1 = 4 THEN Player4_name END AS Name,"+
                 "COUNT(*) AS Wins "+
                 "FROM mysql.Stats "+
+                "WHERE Place_1 IS NOT NULL "+
                 "GROUP BY "+
                 "CASE WHEN Place_1 = 1 THEN Player1_name "+
                 "WHEN Place_1 = 2 THEN Player2_name "+
@@ -190,9 +204,10 @@ io.on('connection', function(socket) {
       }).then(function () {
         return session
           .sql("SELECT "+
-                "ROUND(SUM(CASE WHEN Place_1 = 1 THEN 1 END)/COUNT(*),2) AS Wins_1, "+
-                "ROUND(SUM(CASE WHEN Place_1 = 2 THEN 1 END) /COUNT(*),2) AS Wins_2, "+
-                "ROUND(AVG(End_Time-Start_Time),2) AS AverageTime, "+
+                "COALESCE(ROUND(SUM(CASE WHEN ISNULL(Place_1) AND ISNULL(Place_2) THEN 1 END)/COUNT(*),2),0) AS Draw, "+
+                "COALESCE(ROUND(SUM(CASE WHEN Place_1 = 1 THEN 1 END)/COUNT(*),2),0) AS Wins_1, "+
+                "COALESCE(ROUND(SUM(CASE WHEN Place_1 = 2 THEN 1 END) /COUNT(*),2),0) AS Wins_2, "+
+                "SEC_TO_TIME(AVG(TIMEDIFF(End_Time,Start_Time))) AS AverageTime, "+
                 "COUNT(*) AS Total "+
                 "FROM mysql.Stats "+
                 "WHERE "+
