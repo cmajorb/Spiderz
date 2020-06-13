@@ -281,7 +281,7 @@ function computerMove(room) {
   var computer = room.gameData.sPlayerData[1];
   if(!computer.isTrapped) {
     shortPath = shortestPath(computer.position,room.canvasData.sSize*room.canvasData.sSections,edges);
-    if(shortPath != -1 && computer.position>20) {
+    if(shortPath != -1 && (computer.position>20 || computer.position==0)) {
       makeMove(room,shortPath[shortPath.length - 2]);
     } else {
       for(var i = edges.length-1; i>=0; i--) {
