@@ -88,8 +88,8 @@ function id2Cartesian(id) {
   if(id==999) {
     return(Polar2cartesian(0,0));
   }
-  var r = Math.floor(id/sections)+1;
-  var t = id%sections;
+  var r = Math.floor((id-1)/sections)+1;
+  var t = (id-1)%sections;
   return Polar2cartesian(r,t);
 }
 
@@ -132,8 +132,8 @@ function drawGrid(){
       ctx.stroke();
       ctx.closePath();
     }
-    var r = Math.floor(tiles[i][0]/sections)+1;
-    var t = tiles[i][0]%sections;
+    var r = Math.floor((tiles[i][0]-1)/sections)+1;
+    var t = (tiles[i][0]-1)%sections;
     ctx.strokeStyle = tiles[i][1];
     ctx.lineWidth = gapSize;
     ctx.beginPath();
@@ -149,7 +149,7 @@ function drawGrid(){
     }
     var coor = id2Cartesian(players[i].position);
     var position = [coor.x-gapSize*(spiderSize/2),coor.y-gapSize*(spiderSize/2),gapSize*spiderSize,gapSize*spiderSize];
-    if(players[i].position==-1) {
+    if(players[i].position==0) {
       position = [0+i*gapSize*spiderSize,0,gapSize*spiderSize,gapSize*spiderSize];
     }
     ctx.drawImage(image, position[0],position[1],position[2],position[3]);

@@ -51,16 +51,6 @@ server.listen(process.env.PORT, function() {
   console.log('Starting server on port '+process.env.PORT);
 });
 
-function tester() {
-  activeSessions[0].name = "major";
-  activeSessions.push({sessionId: activeSessions[0].sessionId, socketId: 000, state: 1, name: "computer"});
-  activeSessions.push({sessionId: activeSessions[0].sessionId, socketId: 001, state: 1, name: "computer2"});
-  activeSessions.push({sessionId: activeSessions[0].sessionId, socketId: 002, state: 1, name: "computer3"});
-  createRoom([activeSessions[0].socketId,000,001,002]);
-
-}
-
-
 io.on('connection', function(socket) {
   socket.on('start-session', function(data) {
             if (getSessionById(activeSessions,data) != -1) {
@@ -84,9 +74,6 @@ io.on('connection', function(socket) {
             }
             getSessionBySocket(activeSessions,socket.id).disconnectTime = 0;
             console.log("Number of active users: "+activeSessions.length);
-            //socket.join(123);
-            //tester();
-
         });
   socket.on('disconnect', function () {
     var client = getSessionBySocket(activeSessions,socket.id);
@@ -104,25 +91,7 @@ io.on('connection', function(socket) {
       var currentNode = game.sCurrentPlayer.position;
       var clickNode =  nodeId(polar.distance,polar.radians,room.canvasData.sSize,room.canvasData.sSections);
       if(data == game.sCurrentPlayer.id) {
-        if(checkAdjacent(currentNode,clickNode,game.sEdges)) {
-          room.statsData.turns[game.sCurrentPlayer.number]++;
-          game.sCurrentPlayer.position = clickNode;
-          game.sEdges = removeEdge(clickNode,game.sEdges);
-          game.sNodes.push([clickNode,colors[game.sCurrentPlayer.number]]);
-          if(clickNode == 999) {
-            room.statsData.winners.push(game.sCurrentPlayer.number)
-            game.sWinner = game.sCurrentPlayer.name;
-          }
-          updateGameState(room);
-          var validNodes = getValidMoves(game.sCurrentPlayer.position,game.sEdges);
-          var sendInfo = {
-            sGameState: game.sGameState,
-            sPlayerData: game.sPlayerData,
-            sNodes: game.sNodes.concat(validNodes),
-            sWinner:game.sWinner
-          };
-          io.to(room.roomId).emit('state', sendInfo);
-        }
+          makeMove(room,clickNode);
       } else {
         console.log(socket.id + " clicked");
       }
@@ -160,7 +129,7 @@ io.on('connection', function(socket) {
       }).then(function () {
         return session
           .sql("SELECT "+
-          "TIMEDIFF(End_Time,Start_Time), "+
+          "SUBSTRING(SEC_TO_TIME(TIMESTAMPDIFF(SECOND,Start_Time,End_Time)),1,8), "+
           "Player1_Name, "+
           "Player1_moves,"+
           "COALESCE(Player2_Name,''), "+
@@ -207,7 +176,7 @@ io.on('connection', function(socket) {
                 "COALESCE(ROUND(SUM(CASE WHEN ISNULL(Place_1) AND ISNULL(Place_2) THEN 1 END)/COUNT(*),2),0) AS Draw, "+
                 "COALESCE(ROUND(SUM(CASE WHEN Place_1 = 1 THEN 1 END)/COUNT(*),2),0) AS Wins_1, "+
                 "COALESCE(ROUND(SUM(CASE WHEN Place_1 = 2 THEN 1 END) /COUNT(*),2),0) AS Wins_2, "+
-                "SEC_TO_TIME(AVG(TIMESTAMPDIFF(SECOND,Start_Time,End_Time))) AS AverageTime, "+
+                "SUBSTRING(SEC_TO_TIME(AVG(TIMESTAMPDIFF(SECOND,Start_Time,End_Time))),1,8) AS AverageTime, "+
                 "COUNT(*) AS Total "+
                 "FROM mysql.Stats "+
                 "WHERE "+
@@ -243,7 +212,7 @@ io.on('connection', function(socket) {
 setInterval(function() {
   var waitRooms = [];
   var room;
-  for(var i =2; i<=4; i++) {
+  for(var i =1; i<=4; i++) {
     room = io.sockets.adapter.rooms['waitRoom'+i];
     if(room) {
       io.to('waitRoom'+i).emit('joining','Joining game ('+room.length+'/'+i+' players)');
@@ -279,13 +248,14 @@ setInterval(function() {
 }, refreshRate);
 
 class Spider {
-  constructor(id,name,number) {
-    this.position = -1;
+  constructor(id,name,number,isComputer) {
+    this.position = 0;
     this.id = id;
     this.activeTurn = false;
     this.name = name;
     this.isTrapped = false;
     this.number = number;
+    this.isComputer = isComputer;
   }
 }
 
@@ -294,33 +264,93 @@ var canvasSizes = [[10,9,30],[12,11,25],[14,13,25]];
 var neutral = "#c0c0c0";
 var colors = ["#FF0000","#0000FF","#FFFF00","#00FF00"];
 var validColor = "#e0bfff";
+var adjectives = ['Bored','Friendly','Gorgeous','Feral','Wispy','Burnt','Hollow',
+'Youthful','Nurturing','Quiet','Lame','Curt','Billowing','Mature',
+'Jealous','Delicate','Pouting','Sinister','Angelic','Caramelized',
+'Toxic','Questing','Humiliating','Girly','Manly','Cozy','Putrid','Amazed',
+'Wilted','Witty'];
+var nouns = ['Alligator','Bert','Candlestick','Doghouse','Emer','Foghorn','Gardener',
+'Huckleberry','Igloo','Jack','Karen','Love','Macaroni','Nucklebones','Oculus',
+'Popcorn','Questions','Raccoon','Stampede','Tazer','Uzi','Vat','Water',
+'Xenophobe','Yak','Zero'];
 
 
+
+function computerMove(room) {
+  var edges = room.gameData.sEdges;
+  var computer = room.gameData.sPlayerData[1];
+  if(!computer.isTrapped) {
+    shortPath = shortestPath(computer.position,room.canvasData.sSize*room.canvasData.sSections,edges);
+    if(shortPath != -1 && computer.position>20) {
+      makeMove(room,shortPath[shortPath.length - 2]);
+    } else {
+      for(var i = edges.length-1; i>=0; i--) {
+        if(edges[i][1]==computer.position) {
+          makeMove(room,edges[i][0]);
+          break;
+        }
+      }
+    }
+  }
+}
+
+function makeMove(room,clickNode) {
+  var game = room.gameData;
+  if(checkAdjacent(game.sCurrentPlayer.position,clickNode,game.sEdges)) {
+    room.statsData.turns[game.sCurrentPlayer.number]++;
+    game.sCurrentPlayer.position = clickNode;
+    game.sEdges = removeEdge(clickNode,game.sEdges);
+    game.sNodes.push([clickNode,colors[game.sCurrentPlayer.number]]);
+    if(clickNode == 999) {
+      room.statsData.winners.push(game.sCurrentPlayer.number)
+      game.sWinner = game.sCurrentPlayer.name;
+    }
+    updateGameState(room);
+    var validNodes = getValidMoves(game.sCurrentPlayer.position,game.sEdges);
+    var sendInfo = {
+      sGameState: game.sGameState,
+      sPlayerData: game.sPlayerData,
+      sNodes: game.sNodes.concat(validNodes),
+      sWinner:game.sWinner
+    };
+    io.to(room.roomId).emit('state', sendInfo);
+  }
+}
 function createRoom(p) {
   var room_id = crypto.randomBytes(16).toString("hex");
-  //var room_id = 123;
   var gamePlayers = [];
 
   for(var i = 0;i<p.length;i++) {
     player1 = getSessionBySocket(activeSessions,p[i]);
     player1.state = 3;
     player1.room = room_id;
-    var spider1 = new Spider(player1.sessionId,player1.name,i);
+    var spider1 = new Spider(player1.sessionId,player1.name,i,false);
     gamePlayers.push(spider1);
     io.to(p[i]).emit('paired');
+  }
+  if(p.length==1) {
+    var ai_id = crypto.randomBytes(16).toString("hex");
+    var spider1 = new Spider(ai_id,generateName(),1,true);
+    gamePlayers.push(spider1);
   }
 
   var canvasData = {
     sRandomDensity: 0.25,
-    sSections: canvasSizes[p.length-2][0],
-    sSize: canvasSizes[p.length-2][1],
-    sGapSize: canvasSizes[p.length-2][2],
-    sSpiderSize: canvasSizes[p.length-2][2]/10
+    sSections: canvasSizes[gamePlayers.length-2][0],
+    sSize: canvasSizes[gamePlayers.length-2][1],
+    sGapSize: canvasSizes[gamePlayers.length-2][2],
+    sSpiderSize: canvasSizes[gamePlayers.length-2][2]/10
   };
   init(room_id,gamePlayers,canvasData);
 
   console.log("active rooms: " + rooms.length);
 
+}
+function generateName() {
+  var ran1 = Math.floor(Math.random() * adjectives.length);
+  var ran2 = Math.floor(Math.random() * nouns.length);
+
+  return adjectives[ran1] + " " + nouns[ran2];
 }
 function endGame(roomId,name,reason) {
   var message;
@@ -352,7 +382,7 @@ function postStats(roomId) {
 
   for(var i = 0; i < room.gameData.sPlayerData.length; i++) {
       var player = getSessionById(activeSessions,room.gameData.sPlayerData[i].id);
-      data.push(player.name,player.ip,stats.turns[i]);
+      data.push(room.gameData.sPlayerData[i].name,player.ip,stats.turns[i]);
       query.push('Player'+(i+1)+'_Name','Player'+(i+1)+'_ip','Player'+(i+1)+'_moves');
   }
   var x = 1;
@@ -429,7 +459,7 @@ function testMap(sections,rings,newedges,numPlayers,allShortPaths) {
   validPaths = 0;
   var shortPath;
   for(var i = (sections*rings)-1; i>=(sections*rings)-sections; i--) {
-      shortPath = shortestPath(i,999,sections*rings,newedges);
+      shortPath = shortestPath(i,sections*rings,newedges);
       if(shortPath!=-1) {
         allShortPaths.push(shortPath);
         validPaths++;
@@ -448,7 +478,7 @@ function randomGenerate(sections,rings,randomDensity,edges,numPlayer) {
     var originalEdges = [...edges];
     var nodesList = [];
     for(var i = 0;i<(sections*rings)*randomDensity; i++) {
-      var randomNode = Math.floor(Math.random() * sections * rings);
+      var randomNode = Math.floor(Math.random() * sections * rings)+1;
       nodesList.push([randomNode,neutral]);
       originalEdges = removeAllEdges(randomNode,originalEdges);
       newedges = [...originalEdges];
@@ -460,8 +490,8 @@ function randomGenerate(sections,rings,randomDensity,edges,numPlayer) {
       if(isValid) {
         var bestPath = allShortPaths.sort(sortFunction)[0];
         bestPathLengths.push(bestPath.length);
-        while(bestPath[1].length > 0) {
-          removeAllEdges(bestPath[1].pop(),newedges);
+        while(bestPath.length > 1) {
+          removeAllEdges(bestPath.pop(),newedges);
         }
         if(bestPathLengths[i]>bestPathLengths[0]+1) {
                isValid = false;
@@ -537,13 +567,12 @@ function init(room_id, gamePlayers,canvasData) {
 
 }
 
-function isTrapped(position,edges) {
-  for(var i = 0; i<edges.length; i++) {
-    if(edges[i][1]==position) {
-      return false;
-    }
+function isTrapped(position,size,edges) {
+  if(shortestPath(position,size,edges) == -1) {
+    return true;
+  } else {
+    return false;
   }
-  return true;
 }
 function getValidMoves(position,edges) {
   var nodes = [];
@@ -558,13 +587,22 @@ function getValidMoves(position,edges) {
 function checkTraps(room) {
   var game = room.gameData;
   for(var i = 0;i<game.sPlayerData.length;i++) {
-    game.sPlayerData[i].isTrapped = isTrapped(game.sPlayerData[i].position,game.sEdges);
+    game.sPlayerData[i].isTrapped = isTrapped(game.sPlayerData[i].position,room.canvasData.sSize*room.canvasData.sSections,game.sEdges);
   }
 }
 
 function updateGameState(room) {
   var game = room.gameData;
   checkTraps(room);
+  var activePlayers = [];
+  for(var i = 0; i < game.sPlayerData.length; i++) {
+    if(!game.sPlayerData[i].isTrapped) {
+      activePlayers.push(i);
+    }
+  }
+  if(activePlayers.length == 1) {
+    autoComplete(activePlayers[0],room);
+  }
   var c = 0;
   do {
     c++;
@@ -576,15 +614,31 @@ function updateGameState(room) {
     }
   }
   while(game.sPlayerData[game.sTurnCount%game.sPlayerData.length].isTrapped == true && c<=game.sPlayerData.length);
-
   room.statsData.turnCount++;
   game.sCurrentPlayer.activeTurn = false;
   game.sCurrentPlayer = game.sPlayerData[game.sTurnCount%game.sPlayerData.length];
   game.sCurrentPlayer.activeTurn = true;
+  if(game.sCurrentPlayer.isComputer) {
+      computerMove(room);
+    }
+}
+
+function autoComplete(index,room) {
+  var game = room.gameData;
+  var player = game.sPlayerData[index];
+  var tiles = remainingTiles(player.position,room.canvasData.sSize*room.canvasData.sSections,game.sEdges);
+  for(var i = 0; i < tiles.length; i++) {
+    game.sEdges = removeEdge(tiles[i],game.sEdges);
+    game.sNodes.push([tiles[i],colors[player.number]]);
+  }
+  room.statsData.winners.push(player.number)
+  game.sWinner = player.name;
+  player.isTrapped = true;
+  player.position = 999;
 }
 
 function nodeId(r,t,rings,sections) {
-  var id = ((r-1)*(rings+1)+t);
+  var id = ((r-1)*(rings+1)+t)+1;
   if(r == 0) {
     return 999;
   }
@@ -599,14 +653,14 @@ function linearRender(sections,rings) {
   var edges = [];
   var currentIndex;
   for(var r = 0; r < rings; r++) {
-    for(var t = 0; t < sections; t++) {
+    for(var t = 1; t <= sections; t++) {
       currentIndex = (r*sections)+t;
-      if(t==sections-1) {
+      if(t==sections) {
         edges.push([currentIndex,currentIndex-(sections-1)]); //right
       } else {
         edges.push([currentIndex,currentIndex+1]); //right
       }
-      if(t==0) {
+      if(t==1) {
         edges.push([currentIndex,currentIndex+(sections-1)]); //left
       } else {
         edges.push([currentIndex,currentIndex-1]); //left
@@ -617,7 +671,7 @@ function linearRender(sections,rings) {
         edges.push([currentIndex,currentIndex-sections]); //down
       }
       if(r==rings-1) {
-        edges.push([currentIndex,-1]); //up
+        edges.push([currentIndex,0]); //up
       } else {
         edges.push([currentIndex,currentIndex+sections]); //up
       }
@@ -627,13 +681,48 @@ function linearRender(sections,rings) {
 
 }
 
-function shortestPath(src,dest,numVertices,edges) {
+function dfs(edges, src, path) {
+  if(src==999) {
+    return [path];
+  }
+    var paths = [];
+    var c = 0;
+    for (var i = 0; i < edges.length; i++) {
+      if(edges[i][1] == src) {
+        if(!path.includes(edges[i][0])) {
+          c++;
+          var newpath = path.concat(edges[i][0]);
+          var result = dfs(edges,edges[i][0],newpath);
+          paths.push(...result);
+        }
+      }
+    }
+    if(c==0 && src!=999) {
+      return [];
+    } else {
+      if(paths.length!=0) {
+        var max = -Infinity;
+        var index = -1;
+        paths.forEach(function(a, i){
+          if (a.length>max) {
+            max = a.length;
+            index = i;
+          }
+        });
+        return [paths[index]];
+      } else {
+        return [];
+      }
+    }
+}
+
+function shortestPath(src,numVertices,edges) {
   var queue = [];
   var visited = [];
   var pred = [];
   var dist = [];
   var path = [];
-  for (var i = 0; i < numVertices; i++) {
+  for (var i = 0; i <= numVertices; i++) {
         visited.push(false);
         dist.push(9999);
         pred.push(-1);
@@ -647,13 +736,14 @@ function shortestPath(src,dest,numVertices,edges) {
         for (var i = 0; i < edges.length; i++) {
           if(edges[i][1] == u) {
             if(edges[i][0] == 999) {
+              path.push(999);
               path.push(u);
               var crawl = edges[i][1];
               while (pred[crawl] != -1) {
                 path.push(pred[crawl]);
                 crawl = pred[crawl];
               }
-              return [dist[edges[i][1]] + 1,path];
+              return path;
             }
             else if(visited[edges[i][0]] == false) {
                 visited[edges[i][0]] = true;
@@ -666,4 +756,28 @@ function shortestPath(src,dest,numVertices,edges) {
         }
     }
     return -1;
+}
+
+function remainingTiles(src,numVertices,edges) {
+  var queue = [];
+  var visited = [];
+  var tiles = [];
+  for (var i = 0; i <= numVertices; i++) {
+        visited.push(false);
+  }
+  visited[src] = true;
+  queue.push(src);
+  while (queue.length != 0) {
+        var u = queue.shift();
+        for (var i = 0; i < edges.length; i++) {
+          if(edges[i][1] == u) {
+             if(visited[edges[i][0]] == false) {
+                visited[edges[i][0]] = true;
+                queue.push(edges[i][0]);
+                tiles.push(edges[i][0]);
+            }
+          }
+        }
+    }
+    return tiles;
 }
