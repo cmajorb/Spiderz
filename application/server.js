@@ -382,7 +382,11 @@ function postStats(roomId) {
 
   for(var i = 0; i < room.gameData.sPlayerData.length; i++) {
       var player = getSessionById(activeSessions,room.gameData.sPlayerData[i].id);
-      data.push(room.gameData.sPlayerData[i].name,player.ip,stats.turns[i]);
+      if(room.gameData.sPlayerData[i].isComputer) {
+        data.push(room.gameData.sPlayerData[i].name+' (AI)',player.ip,stats.turns[i]);
+      } else {
+        data.push(room.gameData.sPlayerData[i].name,player.ip,stats.turns[i]);
+      }
       query.push('Player'+(i+1)+'_Name','Player'+(i+1)+'_ip','Player'+(i+1)+'_moves');
   }
   var x = 1;
