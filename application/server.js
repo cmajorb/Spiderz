@@ -279,18 +279,24 @@ var nouns = ['Alligator','Bert','Candlestick','Doghouse','Emer','Foghorn','Garde
 function computerMove(room) {
   var edges = room.gameData.sEdges;
   var computer = room.gameData.sPlayerData[1];
+  var ver = room.canvasData.sSize*room.canvasData.sSections;
+  var playerPositions = [];
+  for(var i = 0; i < room.gameData.sPlayerData.length;i++) {
+    playerPositions.push(room.gameData.sPlayerData[i].position);
+  }
+
   if(!computer.isTrapped) {
-    shortPath = shortestPath(computer.position,room.canvasData.sSize*room.canvasData.sSections,edges);
-    if(shortPath != -1 && (computer.position>20 || computer.position==0)) {
-      makeMove(room,shortPath[shortPath.length - 2]);
-    } else {
-      for(var i = edges.length-1; i>=0; i--) {
-        if(edges[i][1]==computer.position) {
-          makeMove(room,edges[i][0]);
-          break;
-        }
+    var tileScore = tryAllMoves(computer.position,edges,ver)
+    var max = -Infinity;
+    var position = 0;
+    tileScore.forEach(function(a, i){
+      if (a[3]>max) {
+        max = a[3];
+        position = a[0];
+        index = i;
       }
-    }
+    });
+    makeMove(room,position);
   }
 }
 
@@ -720,48 +726,6 @@ function dfs(edges, src, path) {
     }
 }
 
-function shortestPath(src,numVertices,edges) {
-  var queue = [];
-  var visited = [];
-  var pred = [];
-  var dist = [];
-  var path = [];
-  for (var i = 0; i <= numVertices; i++) {
-        visited.push(false);
-        dist.push(9999);
-        pred.push(-1);
-  }
-  visited[src] = true;
-  dist[src] = 0;
-  queue.push(src);
-
-  while (queue.length != 0) {
-        var u = queue.shift();
-        for (var i = 0; i < edges.length; i++) {
-          if(edges[i][1] == u) {
-            if(edges[i][0] == 999) {
-              path.push(999);
-              path.push(u);
-              var crawl = edges[i][1];
-              while (pred[crawl] != -1) {
-                path.push(pred[crawl]);
-                crawl = pred[crawl];
-              }
-              return path;
-            }
-            else if(visited[edges[i][0]] == false) {
-                visited[edges[i][0]] = true;
-                dist[edges[i][0]] = dist[u] + 1;
-                pred[edges[i][0]] = u;
-                queue.push(edges[i][0]);
-            }
-
-          }
-        }
-    }
-    return -1;
-}
-
 function remainingTiles(src,numVertices,edges) {
   var queue = [];
   var visited = [];
@@ -784,4 +748,152 @@ function remainingTiles(src,numVertices,edges) {
         }
     }
     return tiles;
+}
+
+function tryMove(src,numVertices,edges) {
+  var newEdges = edges.slice(0);
+  newEdges = removeEdge(src,newEdges);
+  var distance = shortestPath(src,numVertices,newEdges);
+  //console.log("Results");
+  //console.log(distance);
+  //console.log(longestPath(src,numVertices,newEdges));
+  if(distance != -1) {
+    distance = distance.length;
+  }
+  var remTiles = remainingTiles(src,numVertices,newEdges);
+  return [distance,remTiles.length,newEdges];
+}
+
+function tryAllMoves2(playerPositions,edges,ver,score) {
+  if(playerPositions.length == 0) {
+    return;
+  }
+  var newPlayerPositions = playerPositions.slice(0);
+  var position = newPlayerPositions.pop();
+  var tileScore;
+  for(var i = 0; i<edges.length; i++) {
+    if(edges[i][1]==position) {
+      tileScore = 0;
+      var results = tryMove(edges[i][0],ver,edges);
+      score = score + results[0]
+      if(results[0]==-1) {
+        tileScore = -1;
+      }
+
+      tryAllMoves2(newPlayerPositions,results[2],ver,score)
+      console.log(results[0]+","+results[1]);
+    }
+  }
+  return score;
+}
+
+function tryAllMoves(position,edges,ver,) {
+  var tileScore = [];
+  for(var i = 0; i<edges.length; i++) {
+    if(edges[i][1]==position) {
+      var results = tryMove(edges[i][0],ver,edges);
+      tileScore.push([edges[i][0],results[0],results[1],0]);
+    }
+  }
+
+  for(var i = 0; i<tileScore.length; i++) {
+    tileScore[i][3] = tileScore[i][2];
+    tileScore[i][3] = tileScore[i][3]-tileScore[i][1];
+    if(tileScore[i][1] == -1) {
+      tileScore[i][3] = -100;
+    }
+  }
+  return tileScore;
+}
+
+function shortestPath(src,numVertices,edges) {
+  var queue = [];
+  var visited = [];
+  var pred = [];
+  var dist = [];
+  var path = [];
+  for (var i = 0; i <= numVertices+1; i++) {
+        visited.push(false);
+        dist.push(9999);
+        pred.push(-1);
+  }
+  visited[src] = true;
+  dist[src] = 0;
+  queue.push(src);
+
+  while (queue.length != 0) {
+        var u = queue.shift();
+        for (var i = 0; i < edges.length; i++) {
+          if(edges[i][1] == u) {
+            var destination = edges[i][0];
+            if(destination==999) {
+              destination = numVertices+1;
+            }
+            if(visited[destination] == false) {
+                visited[destination] = true;
+                dist[destination] = dist[u] + 1;
+                pred[destination] = u;
+                queue.push(destination);
+            }
+          }
+        }
+    }
+    var crawl = numVertices+1;
+    var path = [];
+    path.push(999)
+    if(pred[crawl] == -1) {
+      return -1;
+    }
+    while (pred[crawl] != -1) {
+      path.push(pred[crawl]);
+      crawl = pred[crawl];
+    }
+    return path;
+}
+
+function longestPath(src,numVertices,edges) {
+  var queue = [];
+  var visited = [];
+  var pred = [];
+  var dist = [];
+  var path = [];
+  for (var i = 0; i <= numVertices+1; i++) {
+        visited.push(false);
+        dist.push(Infinity);
+        pred.push(-1);
+  }
+  visited[src] = true;
+  dist[src] = 0;
+  queue.push([src,0]);
+
+  while (queue.length != 0) {
+    queue.sort(function(a, b){return a[1]-b[1] || b[0]-a[0]});
+    console.log(queue);
+        var u = queue.shift()[0];
+        for (var i = 0; i < edges.length; i++) {
+          if(edges[i][1] == u) {
+            var destination = edges[i][0];
+            if(destination==999) {
+              destination = numVertices+1;
+            }
+            if(dist[destination] > dist[u] - 1 && visited[destination] == false) {
+                visited[destination] = true;
+                dist[destination] = dist[u] - 1;
+                pred[destination] = u;
+                queue.push([destination,dist[destination]]);
+            }
+          }
+        }
+    }
+    var crawl = numVertices+1;
+    var path = [];
+    path.push(999)
+    if(pred[crawl] == -1) {
+      return -1;
+    }
+    while (pred[crawl] != -1) {
+      path.push(pred[crawl]);
+      crawl = pred[crawl];
+    }
+    return path;
 }
