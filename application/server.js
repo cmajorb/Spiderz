@@ -259,7 +259,7 @@ class Spider {
   }
 }
 
-var canvasSizes = [[10,9,30],[12,11,25],[14,13,25]];
+var canvasSizes = [[6,5,30],[10,9,30],[12,11,25],[14,13,25]];
 
 var neutral = "#c0c0c0";
 var colors = ["#FF0000","#0000FF","#FFFF00","#00FF00"];
@@ -276,24 +276,22 @@ var nouns = ['Alligator','Bert','Candlestick','Doghouse','Emer','Foghorn','Garde
 
 
 
-function computerMove(room) {
+function computerMove(room, tree) {
   var edges = room.gameData.sEdges;
   var computer = room.gameData.sPlayerData[1];
   var ver = room.canvasData.sSize*room.canvasData.sSections;
-  var playerPositions = [];
-  for(var i = 0; i < room.gameData.sPlayerData.length;i++) {
-    playerPositions.push(room.gameData.sPlayerData[i].position);
-  }
 
   if(!computer.isTrapped) {
-    var tileScore = tryAllMoves(computer.position,edges,ver)
     var max = -Infinity;
     var position = 0;
-    tileScore.forEach(function(a, i){
-      if (a[3]>max) {
-        max = a[3];
-        position = a[0];
-        index = i;
+    if(tree.children[0]) {
+      console.log("--"+tree.children[0].layer%2+"--");
+    }
+    tree.children.forEach(function(a, i){
+      console.log(a.position+":"+a.value);
+      if (a.value>max) {
+        position = a.position;
+        max = a.value;
       }
     });
     makeMove(room,position);
@@ -303,6 +301,14 @@ function computerMove(room) {
 function makeMove(room,clickNode) {
   var game = room.gameData;
   if(checkAdjacent(game.sCurrentPlayer.position,clickNode,game.sEdges)) {
+    if(game.sGameTree != null) {
+      for(var i = 0; i < game.sGameTree.children.length; i++) {
+        if(game.sGameTree.children[i].position == clickNode) {
+          game.sGameTree = game.sGameTree.children[i];
+        }
+      }
+    }
+
     room.statsData.turns[game.sCurrentPlayer.number]++;
     game.sCurrentPlayer.position = clickNode;
     game.sEdges = removeEdge(clickNode,game.sEdges);
@@ -325,7 +331,8 @@ function makeMove(room,clickNode) {
 function createRoom(p) {
   var room_id = crypto.randomBytes(16).toString("hex");
   var gamePlayers = [];
-
+  var canvasId = 0;
+  var isAI = false;
   for(var i = 0;i<p.length;i++) {
     player1 = getSessionBySocket(activeSessions,p[i]);
     player1.state = 3;
@@ -338,16 +345,19 @@ function createRoom(p) {
     var ai_id = crypto.randomBytes(16).toString("hex");
     var spider1 = new Spider(ai_id,generateName(),1,true);
     gamePlayers.push(spider1);
+    isAI = true;
+  } else {
+    canvasId = gamePlayers.length-1;
   }
 
   var canvasData = {
     sRandomDensity: 0.25,
-    sSections: canvasSizes[gamePlayers.length-2][0],
-    sSize: canvasSizes[gamePlayers.length-2][1],
-    sGapSize: canvasSizes[gamePlayers.length-2][2],
-    sSpiderSize: canvasSizes[gamePlayers.length-2][2]/10
+    sSections: canvasSizes[canvasId][0],
+    sSize: canvasSizes[canvasId][1],
+    sGapSize: canvasSizes[canvasId][2],
+    sSpiderSize: canvasSizes[canvasId][2]/10
   };
-  init(room_id,gamePlayers,canvasData);
+  init(room_id,gamePlayers,canvasData,isAI);
 
   console.log("active rooms: " + rooms.length);
 
@@ -541,7 +551,7 @@ function checkAdjacent(fromNode,toNode,edges) {
   }
   return false;
 }
-function init(room_id, gamePlayers,canvasData) {
+function init(room_id, gamePlayers,canvasData,isAI) {
   gameState = -1;
   winner = -1;
   var edges = linearRender(canvasData.sSections,canvasData.sSize)
@@ -551,6 +561,14 @@ function init(room_id, gamePlayers,canvasData) {
 
   var currentPlayer = gamePlayers[0];
   currentPlayer.activeTurn = true;
+  if(isAI) {
+    var root = new MapNode(edges,1,0);
+    generateTree(root, 0, 0, canvasData.sSize*canvasData.sSections);
+  } else {
+    var root = null;
+  }
+
+
   statsData = {
     startTime: new Date().toISOString().slice(0, 19).replace('T', ' '),
     turnCount: 0,
@@ -565,7 +583,8 @@ function init(room_id, gamePlayers,canvasData) {
     sPlayerData: gamePlayers,
     sWinner:winner,
     sTurnCount: 0,
-    sCurrentPlayer: currentPlayer
+    sCurrentPlayer: currentPlayer,
+    sGameTree: root
   };
   rooms.push({
     roomId: room_id,
@@ -573,6 +592,7 @@ function init(room_id, gamePlayers,canvasData) {
     canvasData: canvasData,
     statsData: statsData
   });
+
   io.to(room_id).emit('init', canvasData); //look into this
 
 }
@@ -629,7 +649,7 @@ function updateGameState(room) {
   game.sCurrentPlayer = game.sPlayerData[game.sTurnCount%game.sPlayerData.length];
   game.sCurrentPlayer.activeTurn = true;
   if(game.sCurrentPlayer.isComputer) {
-      computerMove(room);
+      computerMove(room, game.sGameTree);
     }
 }
 
@@ -691,41 +711,6 @@ function linearRender(sections,rings) {
 
 }
 
-function dfs(edges, src, path) {
-  if(src==999) {
-    return [path];
-  }
-    var paths = [];
-    var c = 0;
-    for (var i = 0; i < edges.length; i++) {
-      if(edges[i][1] == src) {
-        if(!path.includes(edges[i][0])) {
-          c++;
-          var newpath = path.concat(edges[i][0]);
-          var result = dfs(edges,edges[i][0],newpath);
-          paths.push(...result);
-        }
-      }
-    }
-    if(c==0 && src!=999) {
-      return [];
-    } else {
-      if(paths.length!=0) {
-        var max = -Infinity;
-        var index = -1;
-        paths.forEach(function(a, i){
-          if (a.length>max) {
-            max = a.length;
-            index = i;
-          }
-        });
-        return [paths[index]];
-      } else {
-        return [];
-      }
-    }
-}
-
 function remainingTiles(src,numVertices,edges) {
   var queue = [];
   var visited = [];
@@ -754,9 +739,7 @@ function tryMove(src,numVertices,edges) {
   var newEdges = edges.slice(0);
   newEdges = removeEdge(src,newEdges);
   var distance = shortestPath(src,numVertices,newEdges);
-  //console.log("Results");
-  //console.log(distance);
-  //console.log(longestPath(src,numVertices,newEdges));
+
   if(distance != -1) {
     distance = distance.length;
   }
@@ -764,47 +747,6 @@ function tryMove(src,numVertices,edges) {
   return [distance,remTiles.length,newEdges];
 }
 
-function tryAllMoves2(playerPositions,edges,ver,score) {
-  if(playerPositions.length == 0) {
-    return;
-  }
-  var newPlayerPositions = playerPositions.slice(0);
-  var position = newPlayerPositions.pop();
-  var tileScore;
-  for(var i = 0; i<edges.length; i++) {
-    if(edges[i][1]==position) {
-      tileScore = 0;
-      var results = tryMove(edges[i][0],ver,edges);
-      score = score + results[0]
-      if(results[0]==-1) {
-        tileScore = -1;
-      }
-
-      tryAllMoves2(newPlayerPositions,results[2],ver,score)
-      console.log(results[0]+","+results[1]);
-    }
-  }
-  return score;
-}
-
-function tryAllMoves(position,edges,ver,) {
-  var tileScore = [];
-  for(var i = 0; i<edges.length; i++) {
-    if(edges[i][1]==position) {
-      var results = tryMove(edges[i][0],ver,edges);
-      tileScore.push([edges[i][0],results[0],results[1],0]);
-    }
-  }
-
-  for(var i = 0; i<tileScore.length; i++) {
-    tileScore[i][3] = tileScore[i][2];
-    tileScore[i][3] = tileScore[i][3]-tileScore[i][1];
-    if(tileScore[i][1] == -1) {
-      tileScore[i][3] = -100;
-    }
-  }
-  return tileScore;
-}
 
 function shortestPath(src,numVertices,edges) {
   var queue = [];
@@ -851,49 +793,75 @@ function shortestPath(src,numVertices,edges) {
     return path;
 }
 
-function longestPath(src,numVertices,edges) {
-  var queue = [];
-  var visited = [];
-  var pred = [];
-  var dist = [];
-  var path = [];
-  for (var i = 0; i <= numVertices+1; i++) {
-        visited.push(false);
-        dist.push(Infinity);
-        pred.push(-1);
+class MapNode {
+  constructor(edges,layer,position) {
+    this.edges = edges;
+    this.children = [];
+    this.layer = layer;
+    this.value = null;
+    this.position = position;
   }
-  visited[src] = true;
-  dist[src] = 0;
-  queue.push([src,0]);
-
-  while (queue.length != 0) {
-    queue.sort(function(a, b){return a[1]-b[1] || b[0]-a[0]});
-    console.log(queue);
-        var u = queue.shift()[0];
-        for (var i = 0; i < edges.length; i++) {
-          if(edges[i][1] == u) {
-            var destination = edges[i][0];
-            if(destination==999) {
-              destination = numVertices+1;
-            }
-            if(dist[destination] > dist[u] - 1 && visited[destination] == false) {
-                visited[destination] = true;
-                dist[destination] = dist[u] - 1;
-                pred[destination] = u;
-                queue.push([destination,dist[destination]]);
-            }
-          }
-        }
-    }
-    var crawl = numVertices+1;
-    var path = [];
-    path.push(999)
-    if(pred[crawl] == -1) {
+}
+function generateTree(node, p1pos, p2pos, size) {
+  //a win for player 1 is 1
+  //a win for player 2 is -1
+  var scores = [];
+  if(node.layer%2==0) {
+    var position = p1pos;
+  } else {
+    var position = p2pos;
+  }
+  if(isTrapped(p1pos,size,node.edges)) {
+    node.value = -1;
+    return node.value;
+  }
+  if(isTrapped(p2pos,size,node.edges)) {
+    node.value = 1;
+    return node.value;
+  }
+  if(p1pos==999) {
+    if(isTrapped(p2pos,size,node.edges)) {
+      node.value = 1;
+      return 1;
+    } else {
+      node.value = -1;
       return -1;
     }
-    while (pred[crawl] != -1) {
-      path.push(pred[crawl]);
-      crawl = pred[crawl];
+  }
+  if(p2pos==999) {
+    if(isTrapped(p1pos,size,node.edges)) {
+      node.value = -1;
+      return -1;
+    } else {
+      node.value = 1;
+      return 1;
     }
-    return path;
+  }
+
+  for(var i = 0; i < node.edges.length; i++) {
+    if(node.edges[i][1]==position) {
+      var newEdges = node.edges.slice(0);
+      newEdges = removeEdge(node.edges[i][0],newEdges);
+
+      if(node.layer%2==0) {
+
+        var childNode = new MapNode(newEdges,node.layer+1,node.edges[i][0]);
+        node.children.push(childNode);
+
+        scores.push(generateTree(childNode,node.edges[i][0],p2pos,size));
+      } else {
+        var childNode = new MapNode(newEdges,node.layer+1,node.edges[i][0]);
+        node.children.push(childNode);
+
+        scores.push(generateTree(childNode,p1pos,node.edges[i][0],size));
+      }
+    }
+  }
+  //console.log("scores:"+scores);
+  if(node.layer%2==0) {
+    node.value = Math.max(...scores)
+  } else {
+    node.value = Math.min(...scores)
+  }
+  return node.value;
 }
